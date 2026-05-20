@@ -14,7 +14,6 @@ ApplicationWindow {
     flags: Qt.FramelessWindowHint | Qt.Window
     color: "transparent"
 
-    property var audioEngine: null
     property var currentStems: []
     property int activeSection: 0
     property int procProgress: 0
@@ -153,25 +152,22 @@ ApplicationWindow {
                                             height: parent.height - 55
                                             interactive: false
                                             model: backend ? backend.historyModel : null
-                                            delegate: Rectangle {
-                                                width: parent.width; height: 44; color: "transparent"
-                                                Row { spacing: 12; anchors.fill: parent; anchors.margins: 4
-                                                    Rectangle { width: 36; height: 36; radius: 8; color: Qt.rgba(0,0.89,0.53,0.08); anchors.verticalCenter: parent.verticalCenter
-                                                        Text { anchors.centerIn: parent; text: "\uE40B"; font.family: "Material Symbols Outlined"; color: "#00e388"; font.pixelSize: 16 }
+                                            delegate: Item {
+                                                width: parent.width; height: 44
+                                                Rectangle { id: histIcon; x: 4; y: 4; width: 36; height: 36; radius: 8; color: Qt.rgba(0,0.89,0.53,0.08)
+                                                    Text { anchors.centerIn: parent; text: "\uE40B"; font.family: "Material Symbols Outlined"; color: "#00e388"; font.pixelSize: 16 }
+                                                }
+                                                Row { id: histActions; anchors.verticalCenter: parent.verticalCenter; anchors.right: parent.right; anchors.rightMargin: 4; spacing: 8
+                                                    Text { text: "\uE037"; font.family: "Material Symbols Outlined"; color: Qt.rgba(0.73,0.8,0.73,0.4); font.pixelSize: 14 }
+                                                    Text { text: "\uE2C4"; font.family: "Material Symbols Outlined"; color: Qt.rgba(0.73,0.8,0.73,0.4); font.pixelSize: 14 }
+                                                }
+                                                Column { anchors.verticalCenter: parent.verticalCenter; anchors.left: histIcon.right; anchors.leftMargin: 12; anchors.right: histActions.left; anchors.rightMargin: 8
+                                                    Text { text: model.file_name || ""; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 14; font.weight: Font.Medium; elide: Text.ElideMiddle; width: parent.width }
+                                                    Row { spacing: 4
+                                                        Text { text: model.status === "ok" ? (model.stems || "6 Stems") : ""; color: Qt.rgba(0.73,0.8,0.73,0.4); font.family: "Inter"; font.pixelSize: 11 }
+                                                        Text { text: (model.status === "ok" && model.created_at) ? "\u2022" : ""; color: Qt.rgba(0.73,0.8,0.73,0.3); font.family: "Inter"; font.pixelSize: 11 }
+                                                        Text { text: model.created_at || ""; color: Qt.rgba(0.73,0.8,0.73,0.4); font.family: "Inter"; font.pixelSize: 11 }
                                                     }
-                                                     Column { anchors.verticalCenter: parent.verticalCenter
-                                                         Text { text: model.file_name || ""; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 14; font.weight: Font.Medium; elide: Text.ElideMiddle; width: 200 }
-                                                         Row { spacing: 4
-                                                             Text { text: model.status === "ok" ? "4 Stems" : ""; color: Qt.rgba(0.73,0.8,0.73,0.4); font.family: "Inter"; font.pixelSize: 11 }
-                                                             Text { text: (model.status === "ok" && model.created_at) ? "\u2022" : ""; color: Qt.rgba(0.73,0.8,0.73,0.3); font.family: "Inter"; font.pixelSize: 11 }
-                                                             Text { text: model.created_at || ""; color: Qt.rgba(0.73,0.8,0.73,0.4); font.family: "Inter"; font.pixelSize: 11 }
-                                                         }
-                                                     }
-                                                     Item { width: 10; height: 1 }
-                                                     Row { anchors.verticalCenter: parent.verticalCenter; spacing: 8
-                                                         Text { text: "\uE037"; font.family: "Material Symbols Outlined"; color: Qt.rgba(0.73,0.8,0.73,0.4); font.pixelSize: 14 }
-                                                         Text { text: "\uE2C4"; font.family: "Material Symbols Outlined"; color: Qt.rgba(0.73,0.8,0.73,0.4); font.pixelSize: 14 }
-                                                     }
                                                 }
                                             }
                                         }
@@ -189,33 +185,31 @@ ApplicationWindow {
                                     Column {
                                         anchors.fill: parent
                                         anchors.margins: 20
-                                        spacing: 18
+                                        spacing: 12
 
                                         Text { text: "Engine Status"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 18; font.weight: Font.DemiBold }
 
-                                        Column { width: parent.width; spacing: 6
+                                        Column { width: parent.width; spacing: 4
                                             Item { width: parent.width; height: 14
                                                 Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "GPU LOAD"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 0.8 }
-                                                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "0%"; color: "#00e388"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
+                                                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: (backend ? backend.gpuLoad : 0) + "%"; color: "#00e388"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
                                             }
                                             Rectangle { width: parent.width; height: 4; radius: 2; color: Qt.rgba(1,1,1,0.06)
-                                                Rectangle { width: 0; height: parent.height; radius: 2; color: "#00e388" }
+                                                Rectangle { width: parent.width * Math.min((backend ? backend.gpuLoad : 0) / 100, 1); height: parent.height; radius: 2; color: "#00e388" }
                                             }
                                         }
 
-                                        Column { width: parent.width; spacing: 6
+                                        Column { width: parent.width; spacing: 4
                                             Item { width: parent.width; height: 14
-                                                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "TRACKS SPLITTED"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 0.8 }
-                                                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "0"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
+                                                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "VRAM"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 0.8 }
+                                                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: (backend ? backend.vramUsed : "0") + " / " + (backend ? backend.vramTotal : "0") + " MB"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
+                                            }
+                                            Rectangle { width: parent.width; height: 4; radius: 2; color: Qt.rgba(1,1,1,0.06)
+                                                Rectangle { width: parent.width * Math.min((backend && backend.vramTotal !== "0" ? parseFloat(backend.vramUsed) / parseFloat(backend.vramTotal) : 0), 1); height: parent.height; radius: 2; color: Qt.rgba(0.73,0.8,0.73,0.4) }
                                             }
                                         }
 
-                                        Column { width: parent.width; spacing: 6
-                                            Item { width: parent.width; height: 14
-                                                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "SPEED FACTOR"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 0.8 }
-                                                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "0.0x"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
-                                            }
-                                        }
+                                        Text { text: backend ? backend.gpuInfo : "Checking..."; color: "#00e388"; font.family: "Inter"; font.pixelSize: 12; font.weight: Font.Medium }
                                     }
                                 }
                             }
@@ -272,15 +266,22 @@ ApplicationWindow {
                                     border.color: Qt.rgba(1, 1, 1, 0.08)
                                     border.width: 1
 
-                                    Column {
-                                        anchors.fill: parent; anchors.margins: 20; spacing: 8
-                                        Row { spacing: 8
-                                            Text { text: "\uEB8E"; font.family: "Material Symbols Outlined"; font.pixelSize: 16; anchors.verticalCenter: parent.verticalCenter }
-                                            Text { text: "Status Log"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 16; font.weight: Font.DemiBold }
+                                    Item {
+                                        anchors.fill: parent; anchors.margins: 20
+                                        Text {
+                                            id: logHeader
+                                            anchors.top: parent.top; anchors.left: parent.left
+                                            text: "\uEB8E  Status Log"
+                                            color: "#e2e2e2"
+                                            font.family: "Inter"
+                                            font.pixelSize: 16
+                                            font.weight: Font.DemiBold
                                         }
-                                        Rectangle { width: parent.width; height: parent.height - 55; radius: 8; color: Qt.rgba(0,0,0,0.25)
-                                            Column { anchors.fill: parent; anchors.margins: 12; spacing: 3
-                                            Text { text: statusLabel.text || "Waiting for file..."; color: statusLabel.text && statusLabel.text.indexOf("not found") > 0 ? "#ffb4ab" : "#00e388"; font.family: "Inter"; font.pixelSize: 12 }
+                                        Rectangle {
+                                            anchors { top: logHeader.bottom; bottom: parent.bottom; left: parent.left; right: parent.right; topMargin: 8 }
+                                            radius: 8; color: Qt.rgba(0,0,0,0.25)
+                                            Column { anchors.fill: parent; anchors.margins: 12
+                                                Text { text: statusLabel.text || "Waiting for file..."; color: statusLabel.text && statusLabel.text.indexOf("not found") > 0 ? "#ffb4ab" : "#00e388"; font.family: "Inter"; font.pixelSize: 12; wrapMode: Text.WordWrap }
                                             }
                                         }
                                     }
@@ -295,28 +296,30 @@ ApplicationWindow {
                                     border.width: 1
 
                                     Column {
-                                        anchors.fill: parent; anchors.margins: 20; spacing: 16
+                                        anchors.fill: parent; anchors.margins: 20; spacing: 8
                                         Text { text: "Resource Usage"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 16; font.weight: Font.DemiBold }
 
-                                        Column { width: parent.width; spacing: 6
+                                        Column { width: parent.width; spacing: 4
                                             Item { width: parent.width; height: 14
                                                 Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "GPU LOAD"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 0.8 }
-                                                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "84%"; color: "#00e388"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
+                                                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: (backend ? backend.gpuLoad : 0) + "%"; color: "#00e388"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
                                             }
                                             Rectangle { width: parent.width; height: 4; radius: 2; color: Qt.rgba(1,1,1,0.06)
-                                                Rectangle { width: parent.width * 0.84; height: parent.height; radius: 2; color: "#00e388" }
+                                                Rectangle { width: parent.width * Math.min((backend ? backend.gpuLoad : 0) / 100, 1); height: parent.height; radius: 2; color: "#00e388" }
                                             }
                                         }
 
-                                        Column { width: parent.width; spacing: 6
+                                        Column { width: parent.width; spacing: 4
                                             Item { width: parent.width; height: 14
                                                 Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "VRAM"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 0.8 }
-                                                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "0 / 0 GB"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
+                                                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: (backend ? backend.vramUsed : "0") + " / " + (backend ? backend.vramTotal : "0") + " MB"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
                                             }
                                             Rectangle { width: parent.width; height: 4; radius: 2; color: Qt.rgba(1,1,1,0.06)
-                                                Rectangle { width: 0; height: parent.height; radius: 2; color: Qt.rgba(0.73,0.8,0.73,0.4) }
+                                                Rectangle { width: parent.width * Math.min((backend && backend.vramTotal !== "0" ? parseFloat(backend.vramUsed) / parseFloat(backend.vramTotal) : 0), 1); height: parent.height; radius: 2; color: Qt.rgba(0.73,0.8,0.73,0.4) }
                                             }
                                         }
+
+                                        Text { text: backend ? backend.gpuInfo : "Checking..."; color: "#00e388"; font.family: "Inter"; font.pixelSize: 12; font.weight: Font.Medium; elide: Text.ElideRight }
 
                                         Row { spacing: 12
                                             Button { flat: true
@@ -364,7 +367,7 @@ ApplicationWindow {
                                         Text { text: "\uE2C4"; font.family: "Material Symbols Outlined"; color: "#00391e"; font.pixelSize: 16; anchors.verticalCenter: parent.verticalCenter }
                                         Text { text: "Export All"; color: "#00391e"; font.family: "Inter"; font.pixelSize: 13; font.weight: Font.Bold; anchors.verticalCenter: parent.verticalCenter }
                                     }
-                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true }
+                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true; onClicked: { if (audioEngine) audioEngine.exportAllStems() } }
                                 }
                             }
 
@@ -375,10 +378,11 @@ ApplicationWindow {
                                     width: parent.width
                                     stemName: modelData.name
                                     stemLabel: "STEM " + ("0" + (index + 1)).slice(-2)
-                                    accentColor: ({"vocals":"#FF69B4","drums":"#4FC3F7","bass":"#FFD700","other":"#00e388"})[modelData.name.toLowerCase()] || "#00e388"
+                                    accentColor: ({"vocals":"#FF69B4","drums":"#4FC3F7","bass":"#FFD700","other":"#00e388","guitar":"#FF8A65","piano":"#CE93D8"})[modelData.name.toLowerCase()] || "#00e388"
                                     onMuteClicked: { if (audioEngine) audioEngine.toggleMute(modelData.name) }
                                     onSoloClicked: { if (audioEngine) audioEngine.toggleSolo(modelData.name) }
                                     onGainAdjusted: function(v) { if (audioEngine) audioEngine.setStemGain(modelData.name, v) }
+                                    onDownloadClicked: { if (audioEngine) audioEngine.exportStem(modelData.name) }
                                 }
                             }
 
@@ -475,22 +479,21 @@ ApplicationWindow {
                                         Column { width: parent.width; spacing: 6
                                             Item { width: parent.width; height: 14
                                                 Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "GPU VRAM Usage"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 0.8 }
-                                                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "0 / 0 GB"; color: "#00e388"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
+                                                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: (backend ? (parseFloat(backend.vramUsed) / 1024).toFixed(1) : "0") + " / " + (backend ? (parseFloat(backend.vramTotal) / 1024).toFixed(1) : "0") + " GB"; color: "#00e388"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
                                             }
                                             Rectangle { width: parent.width; height: 4; radius: 2; color: Qt.rgba(1,1,1,0.06)
-                                                Rectangle { width: 0; height: parent.height; radius: 2; color: "#00e388" }
+                                                Rectangle { width: parent.width * Math.min((backend && backend.vramTotal !== "0" ? parseFloat(backend.vramUsed) / parseFloat(backend.vramTotal) : 0), 1); height: parent.height; radius: 2; color: "#00e388" }
                                             }
                                         }
                                         Column { width: parent.width; spacing: 6
                                             Item { width: parent.width; height: 14
-                                                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Tensor Core Load"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 0.8 }
-                                                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "0%"; color: "#00e388"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
+                                                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "GPU Load"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 0.8 }
+                                                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: (backend ? backend.gpuLoad : "0") + "%"; color: "#00e388"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
                                             }
                                             Rectangle { width: parent.width; height: 4; radius: 2; color: Qt.rgba(1,1,1,0.06)
-                                                Rectangle { width: 0; height: parent.height; radius: 2; color: "#00e388" }
+                                                Rectangle { width: parent.width * Math.min((backend ? backend.gpuLoad : 0) / 100, 1); height: parent.height; radius: 2; color: "#00e388" }
                                             }
                                         }
-                                        Text { text: "Hardware: " + (backend ? backend.gpuInfo : "Unknown"); color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 12 }
                                     }
                                 }
                             }
@@ -570,7 +573,9 @@ ApplicationWindow {
         function onSplitStarted(fp) { currentStems = []; activeSection = 1; if (audioEngine) audioEngine.clearAll() }
         function onProgressUpdated(v) { app.procProgress = Math.min(v, 99) }
         function onStatusUpdated(msg) { statusLabel.text = msg }
-        function onSplitFinished(status, stems) {
+        function onWaveformReady(name, data) { wavePanel.waveformData = data; wavePanel.hasAudio = true }
+        function onSplitFinished(status, stemsJson) {
+            var stems = JSON.parse(stemsJson)
             if (status === "ok") {
                 currentStems = stems; activeSection = 2
                 if (audioEngine) audioEngine.loadStems(stems)
@@ -585,8 +590,8 @@ ApplicationWindow {
         id: demucsCheck
         interval: 500
         onTriggered: {
-            if (backend && !backend.checkDemucs())
-                statusLabel.text = "Demucs not found. Install: pip install demucs"
+            if (backend)
+                backend.startDemucsCheck()
         }
     }
 

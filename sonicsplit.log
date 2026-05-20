@@ -1,0 +1,115 @@
+
+=== SonicSplit 2026-05-20T14:34:18.093093 ===
+
+=== SonicSplit 2026-05-20T14:40:15.342797 ===
+
+=== SonicSplit 2026-05-20T14:40:51.318602 ===
+
+=== SonicSplit 2026-05-20T14:40:58.871009 ===
+
+=== SonicSplit 2026-05-20T14:47:32.752214 ===
+[14:47:43] startSplit called: C:/Users/Akif Selim Tarakcı/Downloads/Tamiri Mümkün Kalbinin.mp3
+[14:47:43] Preparing...
+[14:47:43] Checking Demucs installation...
+[14:47:43] Checking Demucs...
+[14:47:47] Demucs installed: True
+[14:47:47] Starting split...
+[14:47:48] Initializing Demucs (htdemucs_6s)...
+[14:47:56] Processing audio...
+[14:47:56] Processing audio...
+[14:47:56] htdemucs_6s failed, trying next...
+[14:47:56] Initializing Demucs (htdemucs)...
+[14:47:56] Processing audio...
+[14:47:56] Processing audio...
+[14:47:56] htdemucs failed, trying next...
+[14:47:56] Split finished: status=Demucs htdemucs_6s failed (code 1): Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\Akif Selim Tarakc�\AppData\Local\Programs\Python\Python313\Lib\site-packages\demucs\__main__.py", line 10, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\Akif Selim Tarakc�\AppData\Local\Programs\Python\Python313\Lib\site-packages\demucs\separate.py", line 167, in main
+    print(f"Separating track {track}")
+    ~~~~~^^^^^^^^^^^^^; Demucs htdemucs failed (code 1): Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\Akif Selim Tarakc�\AppData\Local\Programs\Python\Python313\Lib\site-packages\demucs\__main__.py", line 10, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\Akif Selim Tarakc�\AppData\Local\Programs\Python\Python313\Lib\site-packages\demucs\separate.py", line 167, in main
+    print(f"Separating track {track}")
+    ~~~~~^^^^^^^^^^^^^, stems=0
+[14:47:56] Demucs htdemucs_6s failed (code 1): Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\Akif Selim Tarakc�\AppData\Local\Programs\Python\Python313\Lib\site-packages\demucs\__main__.py", line 10, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\Akif Selim Tarakc�\AppData\Local\Programs\Python\Python313\Lib\site-packages\demucs\separate.py", line 167, in main
+    print(f"Separating track {track}")
+    ~~~~~^^^^^^^^^^^^^; Demucs htdemucs failed (code 1): Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\Akif Selim Tarakc�\AppData\Local\Programs\Python\Python313\Lib\site-packages\demucs\__main__.py", line 10, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\Akif Selim Tarakc�\AppData\Local\Programs\Python\Python313\Lib\site-packages\demucs\separate.py", line 167, in main
+    print(f"Separating track {track}")
+    ~~~~~^^^^^^^^^^^^^
+
+=== SonicSplit 2026-05-20T14:50:50.514859 ===
+
+=== SonicSplit 2026-05-20T14:52:15.300604 ===
+[14:52:32] startSplit called: C:/Users/Akif Selim Tarakcı/Downloads/Tamiri Mümkün Kalbinin.mp3
+[14:52:32] Preparing...
+[14:52:32] Checking Demucs installation...
+[14:52:32] Checking Demucs...
+[14:52:36] Demucs installed: True
+[14:52:36] Starting split...
+[14:52:37] Initializing Demucs (htdemucs_6s)...
+[14:52:46] Processing audio...
+[14:52:47] Processing audio...
+[14:52:48] Processing audio...
+[14:53:01] Complete!
+[14:53:01] Split finished: status=ok, stems=6
+
+=== SonicSplit 2026-05-20T14:55:36.815066 ===
+
+=== SonicSplit 2026-05-20T14:59:11.007348 ===
+
+=== SonicSplit 2026-05-20T15:03:21.248866 ===
+
+=== SonicSplit 2026-05-20T15:03:59.499635 ===
+[15:04:09] startSplit called: C:/Users/Akif Selim Tarakcı/Downloads/Tamiri Mümkün Kalbinin.mp3
+[15:04:09] Preparing...
+[15:04:09] Using cached stems: 6 files
+
+=== SonicSplit 2026-05-20T15:06:17.571661 ===
+[15:06:24] startSplit called: C:/Users/Akif Selim Tarakcı/Downloads/Tamiri Mümkün Kalbinin.mp3
+[15:06:24] Preparing...
+[15:06:24] Using cached stems: 6 files
+
+=== SonicSplit 2026-05-20T15:08:02.958960 ===
+
+=== SonicSplit 2026-05-20T15:08:20.167278 ===
+
+=== SonicSplit 2026-05-20T15:08:39.644199 ===
+
+=== SonicSplit 2026-05-20T15:09:22.489970 ===
+[15:09:52] startSplit called: C:/Users/Akif Selim Tarakcı/Downloads/Tamiri Mümkün Kalbinin.mp3
+[15:09:52] Preparing...
+[15:09:52] Using cached stems: 6 files
+
+=== SonicSplit 2026-05-20T15:12:52.842060 ===
+[15:13:16] startSplit called: C:/Users/Akif Selim Tarakcı/Downloads/Tamiri Mümkün Kalbinin.mp3
+[15:13:16] Preparing...
+[15:13:16] Checking Demucs installation...
+[15:13:16] Checking Demucs...
+[15:13:20] Demucs installed: True
+[15:13:20] Starting split...
+[15:13:21] Initializing Demucs (htdemucs_6s)...
+[15:13:29] Processing audio...
+[15:13:30] Processing audio...
+[15:13:32] Processing audio...
+[15:13:45] Complete!
+[15:13:45] Split finished: status=ok, stems=6

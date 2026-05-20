@@ -28,8 +28,8 @@ Rectangle {
     MouseArea {
         anchors.fill: parent
         property point clickPos: Qt.point(0, 0)
-        onPressed: { clickPos = Qt.point(mouse.x, mouse.y) }
-        onPositionChanged: {
+        onPressed: function(mouse) { clickPos = Qt.point(mouse.x, mouse.y) }
+        onPositionChanged: function(mouse) {
             if (pressed) {
                 var w = root.Window.window
                 if (w) {
@@ -136,8 +136,8 @@ Rectangle {
                     }
 
                     Text {
-                        text: root.gpuInfo
-                        color: root.gpuAvailable ? "#00e388" : Qt.rgba(0.73, 0.8, 0.73, 0.6)
+                        text: root.gpuAvailable ? "GPU" : "CPU"
+                        color: root.gpuAvailable ? "#00e388" : "#FFD600"
                         font.family: "Inter"
                         font.pixelSize: 11
                         font.letterSpacing: 0.8

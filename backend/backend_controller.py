@@ -1,8 +1,14 @@
 import os
+import subprocess
+import sqlite3
+import datetime
+import json
+import shutil
 from PySide6.QtCore import (
-    QObject, Signal, Slot, Property, QTimer,
+    QObject, Signal, Slot, Property, QTimer, QThread,
     QAbstractListModel, Qt,
 )
+from PySide6.QtWidgets import QFileDialog
 
 from backend.cuda_checker import has_cuda, gpu_name, device_info
 from backend.splitter import Splitter
@@ -47,7 +53,7 @@ class BackendController(QObject):
     splitStarted = Signal(str)
     progressUpdated = Signal(int)
     statusUpdated = Signal(str)
-    splitFinished = Signal(str, object)
+    splitFinished = Signal(str, str)
     stemToggled = Signal(str, bool)
     stemMuteChanged = Signal(str, bool)
     stemSoloChanged = Signal(str, bool)
@@ -62,16 +68,42 @@ class BackendController(QObject):
         self._cache_manager = CacheManager()
         self._gpu_info = "Checking..."
         self._gpu_available = False
+        self._gpu_load = 0
+        self._vram_used = "0"
+        self._vram_total = "0"
         self._history_model = HistoryListModel()
         self._soloed_stems = set()
         self._current_file = ""
         self._all_playing = False
+        self._log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "sonicsplit.log")
+
+        with open(self._log_path, "a", encoding="utf-8") as f:
+            f.write(f"\n=== SonicSplit {datetime.datetime.now().isoformat()} ===\n")
 
         self._splitter.progressChanged.connect(self.progressUpdated)
-        self._splitter.statusChanged.connect(self.statusUpdated)
+        self._splitter.statusChanged.connect(self._on_status_updated)
         self._splitter.finished.connect(self._on_split_finished)
 
+        self._gpu_monitor = QTimer(self)
+        self._gpu_monitor.setInterval(2000)
+        self._gpu_monitor.timeout.connect(self._poll_gpu_stats)
+        self._gpu_monitor.start()
+
         self._load_history()
+
+    def _log(self, msg):
+        ts = datetime.datetime.now().strftime("%H:%M:%S")
+        line = f"[{ts}] {msg}"
+        print(line, flush=True)
+        try:
+            with open(self._log_path, "a", encoding="utf-8") as f:
+                f.write(line + "\n")
+        except Exception:
+            pass
+
+    def _on_status_updated(self, msg):
+        self._log(msg)
+        self.statusUpdated.emit(msg)
 
     def _gpu(self):
         return self._gpu_info
@@ -99,6 +131,34 @@ class BackendController(QObject):
             self._gpu_available = False
         self.gpuInfoChanged.emit()
 
+    @Slot()
+    def startDemucsCheck(self):
+        class DemucsCheck(QObject):
+            done = Signal(bool)
+            @Slot()
+            def run(self):
+                import subprocess, sys
+                try:
+                    r = subprocess.run([sys.executable, "-m", "demucs", "--help"],
+                                       capture_output=True, timeout=10)
+                    self.done.emit(r.returncode == 0)
+                except Exception:
+                    self.done.emit(False)
+
+        self._demucs_check_thread = QThread()
+        self._demucs_check_worker = DemucsCheck()
+        self._demucs_check_worker.moveToThread(self._demucs_check_thread)
+        self._demucs_check_thread.started.connect(self._demucs_check_worker.run)
+        self._demucs_check_worker.done.connect(lambda ok: self._on_startup_demucs_checked(ok))
+        self._demucs_check_worker.done.connect(self._demucs_check_thread.quit)
+        self._demucs_check_thread.finished.connect(self._demucs_check_thread.deleteLater)
+        self._demucs_check_thread.start()
+
+    def _on_startup_demucs_checked(self, ok):
+        if not ok:
+            self._log("Demucs not found on startup")
+            self._on_status_updated("Demucs not found. Install: pip install demucs")
+
     @Slot(result=bool)
     def checkDemucs(self):
         try:
@@ -111,32 +171,93 @@ class BackendController(QObject):
         except Exception:
             return False
 
+    def _poll_gpu_stats(self):
+        if not self._gpu_available:
+            return
+        try:
+            r = subprocess.run(
+                ["nvidia-smi", "--query-gpu=utilization.gpu,memory.used,memory.total",
+                 "--format=csv,noheader,nounits"],
+                capture_output=True, text=True, timeout=3
+            )
+            if r.returncode == 0:
+                parts = r.stdout.strip().split(", ")
+                if len(parts) >= 3:
+                    self._gpu_load = int(float(parts[0]))
+                    self._vram_used = str(int(float(parts[1])))
+                    self._vram_total = str(int(float(parts[2])))
+                    self.gpuInfoChanged.emit()
+        except Exception:
+            pass
+
+    def _get_gpu_load(self):
+        return self._gpu_load
+
+    def _get_vram_used(self):
+        return self._vram_used
+
+    def _get_vram_total(self):
+        return self._vram_total
+
+    gpuLoad = Property(int, _get_gpu_load, notify=gpuInfoChanged)
+    vramUsed = Property(str, _get_vram_used, notify=gpuInfoChanged)
+    vramTotal = Property(str, _get_vram_total, notify=gpuInfoChanged)
+
     @Slot(str)
     def startSplit(self, file_path):
+        self._log(f"startSplit called: {file_path}")
         if not os.path.isfile(file_path):
-            self.splitFinished.emit(f"File not found: {file_path}", [])
+            self._log(f"File NOT FOUND: {file_path}")
+            self.splitFinished.emit(f"File not found: {file_path}", "[]")
             return
 
         self._current_file = file_path
         self.splitStarted.emit(file_path)
-        self.statusUpdated.emit("Preparing...")
+        self._on_status_updated("Preparing...")
 
         cache_path = self._cache_manager.has_cached(file_path)
         if cache_path:
             stems = self._stems_from_dir(cache_path, file_path)
             if stems:
+                self._log(f"Using cached stems: {len(stems)} files")
                 QTimer.singleShot(100, lambda: self._emit_cached(stems, file_path))
                 return
 
-        if not self.checkDemucs():
-            self.statusUpdated.emit("Demucs not found. Install it: pip install demucs")
-            self.splitFinished.emit("Demucs is not installed. Run: pip install demucs", [])
-            return
+        self._log("Checking Demucs installation...")
+        self._on_status_updated("Checking Demucs...")
 
-        self._splitter.split(file_path)
+        class DemucsCheck(QObject):
+            done = Signal(bool)
+            @Slot()
+            def run(self):
+                import subprocess, sys
+                try:
+                    r = subprocess.run([sys.executable, "-m", "demucs", "--help"],
+                                       capture_output=True, timeout=10)
+                    self.done.emit(r.returncode == 0)
+                except Exception:
+                    self.done.emit(False)
+
+        self._demucs_thread = QThread()
+        self._demucs_worker = DemucsCheck()
+        self._demucs_worker.moveToThread(self._demucs_thread)
+        self._demucs_thread.started.connect(self._demucs_worker.run)
+        self._demucs_worker.done.connect(lambda ok: self._on_demucs_checked(ok))
+        self._demucs_worker.done.connect(self._demucs_thread.quit)
+        self._demucs_thread.finished.connect(self._demucs_thread.deleteLater)
+        self._demucs_thread.start()
+
+    def _on_demucs_checked(self, ok):
+        self._log(f"Demucs installed: {ok}")
+        if not ok:
+            self._on_status_updated("Demucs not found. Install: pip install demucs")
+            self.splitFinished.emit("Demucs is not installed. Run: pip install demucs", "[]")
+            return
+        self._on_status_updated("Starting split...")
+        self._splitter.split(self._current_file)
 
     def _emit_cached(self, stems, file_path):
-        self.splitFinished.emit("ok", stems)
+        self.splitFinished.emit("ok", json.dumps(stems))
         self._log_to_db(file_path, stems, "cached")
 
     def _stems_from_dir(self, dir_path, original_path=None):
@@ -150,15 +271,16 @@ class BackendController(QObject):
         return stems
 
     def _on_split_finished(self, status, stems):
+        self._log(f"Split finished: status={status}, stems={len(stems)}")
         if status == "ok" and stems:
             self._cache_manager.set_cached(self._current_file_path(), self._stems_dir(stems))
             self._load_stems_into_engine(stems)
             self._log_to_db(self._current_file_path(), stems, "ok")
         else:
-            self.statusUpdated.emit(status if isinstance(status, str) else "Unknown error")
+            self._on_status_updated(status if isinstance(status, str) else "Unknown error")
 
         self._load_history()
-        self.splitFinished.emit(status, stems)
+        self.splitFinished.emit(status, json.dumps(stems))
 
     def _current_file_path(self):
         return self._current_file
@@ -261,6 +383,50 @@ class BackendController(QObject):
             player.stop()
             self.stemToggled.emit(name, False)
 
+    @Slot(str)
+    def exportStem(self, name):
+        player = self._audio_engine.get_stem_player(name)
+        if not player:
+            self._log(f"Export failed: stem '{name}' not loaded")
+            self._on_status_updated(f"Export failed: stem '{name}' not found")
+            return
+        src = player._player.source().toLocalFile()
+        if not src or not os.path.isfile(src):
+            self._log(f"Export failed: no source file for '{name}'")
+            return
+        dir_path = QFileDialog.getExistingDirectory(None, f"Export {name}")
+        if not dir_path:
+            return
+        ext = os.path.splitext(src)[1] or ".wav"
+        dst = os.path.join(dir_path, f"{name}{ext}")
+        try:
+            shutil.copy2(src, dst)
+            self._log(f"Exported '{name}' -> {dst}")
+            self._on_status_updated(f"Exported '{name}'")
+        except Exception as e:
+            self._log(f"Export error: {e}")
+
+    @Slot()
+    def exportAllStems(self):
+        players = list(self._audio_engine._players.items())
+        if not players:
+            self._log("Export All: no stems loaded")
+            return
+        dir_path = QFileDialog.getExistingDirectory(None, "Export All Stems")
+        if not dir_path:
+            return
+        for name, player in players:
+            src = player._player.source().toLocalFile()
+            if src and os.path.isfile(src):
+                ext = os.path.splitext(src)[1] or ".wav"
+                dst = os.path.join(dir_path, f"{name}{ext}")
+                try:
+                    shutil.copy2(src, dst)
+                except Exception as e:
+                    self._log(f"Export '{name}' error: {e}")
+        self._log(f"Exported {len(players)} stems to {dir_path}")
+        self._on_status_updated(f"Exported {len(players)} stems")
+
     @Slot()
     def cleanup(self):
         self._audio_engine.clear()
@@ -269,6 +435,19 @@ class BackendController(QObject):
     def clearAll(self):
         self._audio_engine.clear()
         self._soloed_stems.clear()
+
+    @Slot()
+    def clearHistory(self):
+        try:
+            conn = sqlite3.connect(self._database.db_path)
+            conn.execute("DELETE FROM history")
+            conn.commit()
+            conn.close()
+            self._load_history()
+            self._log("History cleared")
+            self._on_status_updated("History cleared")
+        except Exception:
+            pass
 
     @Slot()
     def cancelSplit(self):

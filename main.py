@@ -41,6 +41,7 @@ def main():
 
     controller = BackendController()
     engine.rootContext().setContextProperty("backend", controller)
+    engine.rootContext().setContextProperty("audioEngine", controller)
 
     qml_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "qml", "Main.qml")
     engine.load(QUrl.fromLocalFile(qml_path))
