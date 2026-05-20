@@ -17,6 +17,10 @@ ApplicationWindow {
     property var currentStems: []
     property int activeSection: 0
     property int procProgress: 0
+    property string selectedModel: "htdemucs"
+    property int segmentSize: 10
+    property real overlapValue: 0.25
+    property int shiftsValue: 1
 
     Rectangle {
         id: mainRect
@@ -445,35 +449,74 @@ ApplicationWindow {
                             }
 
                             Row { width: parent.width; spacing: 24
-                                Rectangle { width: (parent.width - 24) * 0.48; height: 200; radius: 24; color: Qt.rgba(1,1,1,0.03); border.color: Qt.rgba(1,1,1,0.08); border.width: 1
-                                    Column { anchors.fill: parent; anchors.margins: 20; spacing: 16
+                                Rectangle { width: (parent.width - 24) * 0.48; height: 330; radius: 24; color: Qt.rgba(1,1,1,0.03); border.color: Qt.rgba(1,1,1,0.08); border.width: 1
+                                    Column { anchors.fill: parent; anchors.margins: 20; spacing: 18
                                         Item { width: parent.width; height: 24
-                                            Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Acceleration Engine"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 18; font.weight: Font.DemiBold }
+                                            Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Demucs Configuration"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 18; font.weight: Font.DemiBold }
                                             Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "\uE322"; font.family: "Material Symbols Outlined"; font.pixelSize: 20 }
                                         }
-                                        Rectangle { width: parent.width; height: 52; radius: 10; color: Qt.rgba(0,0.89,0.53,0.04); border.color: Qt.rgba(0,0.89,0.53,0.25); border.width: 1
-                                            Item { anchors.fill: parent; anchors.margins: 16
-                                                Column { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
-                                                    Text { text: "NVIDIA CUDA (GPU)"; color: "#00e388"; font.family: "Inter"; font.pixelSize: 15; font.weight: Font.DemiBold }
-                                                    Text { text: "Recommended for batch processing"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11 }
-                                                }
-                                                Rectangle { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; width: 18; height: 18; radius: 9; color: "#00e388"
-                                                    Rectangle { anchors.centerIn: parent; width: 6; height: 6; radius: 3; color: "#121414" }
+                                        Column { width: parent.width; spacing: 6
+                                            Text { text: "Model"; color: Qt.rgba(0.73,0.8,0.73,0.55); font.family: "Inter"; font.pixelSize: 12 }
+                                            ModernCombo {
+                                                id: modelBox
+                                                width: parent.width
+                                                model: ["htdemucs", "htdemucs_ft", "htdemucs_6s", "mdx_extra"]
+                                                currentIndex: 0
+                                                onCurrentTextChanged: {
+                                                    selectedModel = currentText
+                                                    backend.selectedModel = currentText
                                                 }
                                             }
                                         }
-                                        Rectangle { width: parent.width; height: 52; radius: 10; color: "transparent"; border.color: Qt.rgba(1,1,1,0.06); border.width: 1
-                                            Item { anchors.fill: parent; anchors.margins: 16
-                                                Column { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
-                                                    Text { text: "CPU Cluster"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 15; font.weight: Font.DemiBold }
-                                                    Text { text: "Standard high-precision threads"; color: Qt.rgba(0.73,0.8,0.73,0.35); font.family: "Inter"; font.pixelSize: 11 }
+                                        Column { width: parent.width; spacing: 6
+                                            Text { text: "Segment Size: " + segmentSlider.value; color: Qt.rgba(0.73,0.8,0.73,0.55); font.family: "Inter"; font.pixelSize: 12 }
+                                            ModernSlider {
+                                                id: segmentSlider
+                                                width: parent.width
+                                                from: 1
+                                                to: 30
+                                                stepSize: 1
+                                                value: 10
+                                                onValueChanged: {
+                                                    segmentSize = value
+                                                    backend.segmentSize = value
+                                                }
+                                            }
+                                        }
+                                        Column { width: parent.width; spacing: 6
+                                            Text { text: "Overlap: " + overlapSlider.value.toFixed(2); color: Qt.rgba(0.73,0.8,0.73,0.55); font.family: "Inter"; font.pixelSize: 12 }
+                                            ModernSlider {
+                                                id: overlapSlider
+                                                width: parent.width
+                                                from: 0.1
+                                                to: 0.9
+                                                stepSize: 0.05
+                                                value: 0.25
+                                                onValueChanged: {
+                                                    overlapValue = value
+                                                    backend.overlap = value
+                                                }
+                                            }
+                                        }
+                                        Column { width: parent.width; spacing: 6
+                                            Text { text: "Shifts: " + shiftsSlider.value + " (quality multiplier)"; color: Qt.rgba(0.73,0.8,0.73,0.55); font.family: "Inter"; font.pixelSize: 12 }
+                                            ModernSlider {
+                                                id: shiftsSlider
+                                                width: parent.width
+                                                from: 1
+                                                to: 4
+                                                stepSize: 1
+                                                value: 1
+                                                onValueChanged: {
+                                                    shiftsValue = value
+                                                    backend.shifts = value
                                                 }
                                             }
                                         }
                                     }
                                 }
 
-                                Rectangle { width: (parent.width - 24) * 0.48; height: 200; radius: 24; color: Qt.rgba(1,1,1,0.03); border.color: Qt.rgba(1,1,1,0.08); border.width: 1
+                                Rectangle { width: (parent.width - 24) * 0.48; height: 330; radius: 24; color: Qt.rgba(1,1,1,0.03); border.color: Qt.rgba(1,1,1,0.08); border.width: 1
                                     Column { anchors.fill: parent; anchors.margins: 20; spacing: 16
                                         Text { text: "Real-time Telemetry"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 18; font.weight: Font.DemiBold }
                                         Column { width: parent.width; spacing: 6

@@ -15,12 +15,16 @@ class SplitWorker(QObject):
     statusChanged = Signal(str)
     finished = Signal(str, list)
 
-    def __init__(self, file_path, output_dir, original_stem=None, models=None):
+    def __init__(self, file_path, output_dir, original_stem=None, models=None,
+                 segment_size=10, overlap=0.25, shifts=1):
         super().__init__()
         self.file_path = file_path
         self.output_dir = output_dir
         self.original_stem = original_stem
         self.models = models or ["htdemucs_6s", "htdemucs"]
+        self.segment_size = segment_size
+        self.overlap = overlap
+        self.shifts = shifts
         self._cancelled = False
 
     def cancel(self):
@@ -37,7 +41,10 @@ class SplitWorker(QObject):
         process = QProcess()
 
         program = sys.executable or "python"
-        args = ["-m", "demucs", "-n", model_name, "-o", self.output_dir]
+        args = ["-m", "demucs", "-n", model_name, "-o", self.output_dir,
+                "--segment", str(self.segment_size),
+                "--overlap", str(self.overlap),
+                "--shifts", str(self.shifts)]
         if has_cuda():
             args += ["--device", "cuda"]
         else:
@@ -135,6 +142,10 @@ class Splitter(QObject):
         self._thread = None
         self._worker = None
         self._cleanup_path = None
+        self.selectedModel = "htdemucs"
+        self.segmentSize = 10
+        self.overlap = 0.25
+        self.shifts = 1
 
     @Slot(str)
     def split(self, file_path):
@@ -174,7 +185,10 @@ class Splitter(QObject):
 
         self._thread = QThread()
         self._worker = SplitWorker(safe_path, output_dir, original_stem=original_stem,
-                                    models=["htdemucs_6s", "htdemucs"])
+                                    models=[self.selectedModel],
+                                    segment_size=self.segmentSize,
+                                    overlap=self.overlap,
+                                    shifts=self.shifts)
         self._worker.moveToThread(self._thread)
 
         self._worker.progressChanged.connect(self.progressChanged)

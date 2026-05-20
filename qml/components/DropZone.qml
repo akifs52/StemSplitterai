@@ -42,7 +42,7 @@ Item {
 
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: root.hovered ? "Drop Audio File" : "Drag && Drop Audio"
+                text: root.hovered ? "Drop Audio File" : "Drop Audio"
                 color: root.hovered ? "#00e388" : Qt.rgba(0.88, 0.88, 0.88, 0.85)
                 font.family: "Montserrat"
                 font.pixelSize: 22
@@ -58,11 +58,14 @@ Item {
             }
 
             Rectangle {
+                id: browseBtn
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: browseTxt.width + 48
                 height: 44
                 radius: 12
-                color: "#00e388"
+                color: hoverHandler.hovered ? (hoverHandler.pressed ? "#00c77a" : "#00f599") : "#00e388"
+
+                Behavior on color { ColorAnimation { duration: 150 } }
 
                 Text {
                     id: browseTxt
@@ -72,6 +75,10 @@ Item {
                     font.family: "Inter"
                     font.pixelSize: 14
                     font.weight: Font.Bold
+                }
+
+                HoverHandler {
+                    id: hoverHandler
                 }
 
                 MouseArea {

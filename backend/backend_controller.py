@@ -203,6 +203,36 @@ class BackendController(QObject):
     vramUsed = Property(str, _get_vram_used, notify=gpuInfoChanged)
     vramTotal = Property(str, _get_vram_total, notify=gpuInfoChanged)
 
+    def _get_selected_model(self):
+        return self._splitter.selectedModel
+
+    def _set_selected_model(self, val):
+        self._splitter.selectedModel = val
+        self._log(f"Model set to: {val}")
+
+    def _get_segment_size(self):
+        return self._splitter.segmentSize
+
+    def _set_segment_size(self, val):
+        self._splitter.segmentSize = val
+
+    def _get_overlap(self):
+        return self._splitter.overlap
+
+    def _set_overlap(self, val):
+        self._splitter.overlap = val
+
+    def _get_shifts(self):
+        return self._splitter.shifts
+
+    def _set_shifts(self, val):
+        self._splitter.shifts = val
+
+    selectedModel = Property(str, _get_selected_model, _set_selected_model)
+    segmentSize = Property(int, _get_segment_size, _set_segment_size)
+    overlap = Property(float, _get_overlap, _set_overlap)
+    shifts = Property(int, _get_shifts, _set_shifts)
+
     @Slot(str)
     def startSplit(self, file_path):
         self._log(f"startSplit called: {file_path}")
