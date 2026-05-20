@@ -30,6 +30,8 @@ ApplicationWindow {
     property int segmentSize: 10
     property real overlapValue: 0.25
     property int shiftsValue: 1
+    property string soloStem: ""
+    property var manualMutes: ({})
 
     Rectangle {
         id: mainRect
@@ -389,11 +391,34 @@ ApplicationWindow {
                                 model: currentStems
                                 delegate: StemTrack {
                                     width: parent.width
+                                    stemId: modelData.name
                                     stemName: modelData.name
                                     stemLabel: "STEM " + ("0" + (index + 1)).slice(-2)
-                                    accentColor: ({"vocals":"#FF69B4","drums":"#4FC3F7","bass":"#FFD700","other":"#00e388","guitar":"#FF8A65","piano":"#CE93D8"})[modelData.name.toLowerCase()] || "#00e388"
-                                    onMuteClicked: { if (audioEngine) audioEngine.toggleMute(modelData.name) }
-                                    onSoloClicked: { if (audioEngine) audioEngine.toggleSolo(modelData.name) }
+                                    accentColor: ({
+                                        "vocals":"#FF69B4",
+                                        "drums":"#4FC3F7",
+                                        "bass":"#FFD700",
+                                        "other":"#00e388"
+                                    })[modelData.name.toLowerCase()] || "#00e388"
+                                    isSolo: soloStem === modelData.name
+                                    isMuted: manualMutes[modelData.name] === true || (soloStem !== "" && soloStem !== modelData.name)
+                                    onMuteClicked: {
+                                        if (soloStem !== "") return
+                                        var m = ({})
+                                        for (var k in manualMutes) m[k] = manualMutes[k]
+                                        m[modelData.name] = !m[modelData.name]
+                                        manualMutes = m
+                                        if (audioEngine) audioEngine.toggleMute(modelData.name)
+                                    }
+                                    onSoloClicked: {
+                                        if (soloStem === modelData.name) {
+                                            soloStem = ""
+                                            if (audioEngine) audioEngine.clearSolo()
+                                        } else {
+                                            soloStem = modelData.name
+                                            if (audioEngine) audioEngine.setSolo(modelData.name)
+                                        }
+                                    }
                                     onGainAdjusted: function(v) { if (audioEngine) audioEngine.setStemGain(modelData.name, v) }
                                     onDownloadClicked: { if (audioEngine) audioEngine.exportStem(modelData.name) }
                                 }
@@ -616,15 +641,53 @@ ApplicationWindow {
                     Item {
                         width: parent.width * 0.4
                         height: parent.height
-                        Row { anchors.centerIn: parent; spacing: 20
-                            Text { text: "\uE043"; font.family: "Material Symbols Outlined"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.pixelSize: 20; anchors.verticalCenter: parent.verticalCenter }
-                            Text { text: "\uE045"; font.family: "Material Symbols Outlined"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.pixelSize: 26; anchors.verticalCenter: parent.verticalCenter }
-                            Rectangle { width: 48; height: 48; radius: 24; color: "#00e388"; anchors.verticalCenter: parent.verticalCenter
-                                Text { anchors.centerIn: parent; text: "\uE037"; font.family: "Material Symbols Outlined"; color: "#00391e"; font.pixelSize: 28 }
-                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (audioEngine) audioEngine.togglePlayAll() } }
+                        Row { anchors.centerIn: parent; spacing: 14
+                            MediaButton {
+                                icon: "\uE043"
                             }
-                            Text { text: "\uE044"; font.family: "Material Symbols Outlined"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.pixelSize: 26; anchors.verticalCenter: parent.verticalCenter }
-                            Text { text: "\uE040"; font.family: "Material Symbols Outlined"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.pixelSize: 20; anchors.verticalCenter: parent.verticalCenter }
+                            MediaButton {
+                                icon: "\uE045"
+                                onClicked: {
+                                    if (audioEngine) audioEngine.previous()
+                                }
+                            }
+                            Rectangle {
+                                width: 58
+                                height: 58
+                                radius: 29
+                                color: playMouse.pressed
+                                       ? "#00b96d"
+                                       : playMouse.containsMouse
+                                            ? "#14f19b"
+                                            : "#00e388"
+                                Behavior on color { ColorAnimation { duration: 120 } }
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "\uE037"
+                                    font.family: "Material Symbols Outlined"
+                                    color: "#00391e"
+                                    font.pixelSize: 30
+                                }
+                                MouseArea {
+                                    id: playMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (audioEngine) audioEngine.togglePlayAll()
+                                    }
+                                }
+                            }
+                            MediaButton {
+                                icon: "\uE044"
+                                onClicked: {
+                                    if (audioEngine) audioEngine.next()
+                                }
+                            }
+                            MediaButton {
+                                icon: "\uE040"
+                                active: true
+                            }
                         }
                     }
 
@@ -633,8 +696,17 @@ ApplicationWindow {
                         height: parent.height
                         Row { anchors.verticalCenter: parent.verticalCenter; anchors.right: parent.right; spacing: 16
                             Text { text: "\uE030"; font.family: "Material Symbols Outlined"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.pixelSize: 20; anchors.verticalCenter: parent.verticalCenter }
-                            Rectangle { width: 100; height: 4; radius: 2; color: Qt.rgba(1,1,1,0.06); anchors.verticalCenter: parent.verticalCenter
-                                Rectangle { width: parent.width * 0.8; height: parent.height; radius: 2; color: Qt.rgba(0.73,0.8,0.73,0.4) }
+                            NeoSlider {
+                                id: volumeSlider
+                                width: 110
+                                height: 24
+                                from: 0
+                                to: 100
+                                value: 80
+                                accent: "#8BE9C1"
+                                onValueChanged: {
+                                    if (audioEngine) audioEngine.setMasterVolume(value / 100.0)
+                                }
                             }
                             Text { text: "\uE8B8"; font.family: "Material Symbols Outlined"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.pixelSize: 20; anchors.verticalCenter: parent.verticalCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: activeSection = 3 } }
                         }

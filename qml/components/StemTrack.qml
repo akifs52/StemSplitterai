@@ -10,6 +10,7 @@ Rectangle {
     property real gainValue: 0.85
     property bool isMuted: false
     property bool isSolo: false
+    property string stemId: ""
 
     signal muteClicked()
     signal soloClicked()
@@ -57,7 +58,7 @@ Rectangle {
         }
 
         Item {
-            width: parent.width - 120 - 200 - 20
+            width: parent.width - 120 - 280 - 20
             height: parent.height
 
             Rectangle {
@@ -90,19 +91,20 @@ Rectangle {
         }
 
         Item {
-            width: 180
+            width: 260
             height: parent.height
 
             Row {
+                anchors.fill: parent
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: 12
+                spacing: 20
 
                 Column {
+                    width: 130
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 6
 
                     Text {
-                        anchors.horizontalCenter: parent.horizontalCenter
                         text: "GAIN"
                         color: Qt.rgba(0.73, 0.8, 0.73, 0.45)
                         font.family: "Inter"
@@ -111,125 +113,137 @@ Rectangle {
                         font.weight: Font.Medium
                     }
 
-                    Rectangle {
-                        width: 90
-                        height: 4
-                        radius: 2
-                        color: Qt.rgba(1, 1, 1, 0.08)
+                    NeoSlider {
+                        id: gainSlider
+                        width: parent.width
+                        from: 0
+                        to: 100
+                        value: 80
+                        accent: root.accentColor
 
-                        Rectangle {
-                            width: gainSlider.position * parent.width
-                            height: parent.height
-                            radius: 2
-                            color: root.accentColor
-                        }
-
-                        Slider {
-                            id: gainSlider
-                            anchors.fill: parent
-                            from: 0
-                            to: 1
-                            value: root.gainValue
-                            leftPadding: 0
-                            rightPadding: 0
-                            topPadding: -6
-                            bottomPadding: -6
-
-                            background: Item {}
-
-                            handle: Rectangle {
-                                x: gainSlider.leftPadding + gainSlider.visualPosition * (gainSlider.availableWidth - width)
-                                y: (gainSlider.availableHeight - height) / 2
-                                width: 12
-                                height: 12
-                                radius: 2
-                                color: root.accentColor
-
-                                Rectangle {
-                                    anchors.fill: parent
-                                    radius: 2
-                                    color: root.accentColor
-                                    opacity: 0.25
-                                    scale: 1.6
-                                    visible: gainSlider.pressed || ma.containsMouse
-                                }
-                            }
-
-                            onMoved: root.gainAdjusted(gainSlider.value)
-
-                            MouseArea {
-                                id: ma
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                acceptedButtons: Qt.NoButton
-                            }
+                        onValueChanged: {
+                            gainAdjusted(value / 100.0)
                         }
                     }
                 }
 
                 Row {
-                    spacing: 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 10
 
-                    Button {
-                        width: 36
-                        height: 36
-                        flat: true
-                        background: Rectangle {
-                            radius: 8
-                            color: parent.hovered ? Qt.rgba(1, 1, 1, 0.05) : "transparent"
-                            border.color: Qt.rgba(1, 1, 1, 0.06)
-                            border.width: 1
-                        }
-                        contentItem: Text {
+                    Rectangle {
+                        id: muteBtn
+                        width: 34
+                        height: 34
+                        radius: 9
+
+                        color: root.isMuted
+                               ? "#FF4D6D"
+                               : ma1.containsMouse
+                                 ? Qt.rgba(1,1,1,0.08)
+                                 : Qt.rgba(1,1,1,0.04)
+
+                        border.color: root.isMuted
+                                      ? "#FF8FA3"
+                                      : Qt.rgba(1,1,1,0.08)
+
+                        border.width: 1
+
+                        scale: ma1.pressed ? 0.92 : 1.0
+
+                        Behavior on scale { NumberAnimation { duration: 90 } }
+                        Behavior on color { ColorAnimation { duration: 120 } }
+
+                        Text {
+                            anchors.centerIn: parent
                             text: "M"
-                            color: root.isMuted ? "#ffb4ab" : Qt.rgba(0.73, 0.8, 0.73, 0.6)
-                            font.pixelSize: 13
-                            font.weight: Font.Bold
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
+                            color: root.isMuted ? "white" : "#d9d9d9"
+                            font.bold: true
+                            font.pixelSize: 12
                         }
-                        onClicked: root.muteClicked()
+
+                        MouseArea {
+                            id: ma1
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.muteClicked()
+                        }
                     }
 
-                    Button {
-                        width: 36
-                        height: 36
-                        flat: true
-                        background: Rectangle {
-                            radius: 8
-                            color: parent.hovered ? Qt.rgba(0, 0.89, 0.53, 0.08) : "transparent"
-                            border.color: Qt.rgba(1, 1, 1, 0.06)
-                            border.width: 1
-                        }
-                        contentItem: Text {
+                    Rectangle {
+                        id: soloBtn
+                        width: 34
+                        height: 34
+                        radius: 9
+
+                        color: root.isSolo
+                               ? "#00F5A0"
+                               : ma2.containsMouse
+                                 ? Qt.rgba(1,1,1,0.08)
+                                 : Qt.rgba(1,1,1,0.04)
+
+                        border.color: root.isSolo
+                                      ? "#B6FFD9"
+                                      : Qt.rgba(1,1,1,0.08)
+
+                        border.width: 1
+
+                        scale: ma2.pressed ? 0.92 : 1.0
+
+                        Behavior on scale { NumberAnimation { duration: 90 } }
+                        Behavior on color { ColorAnimation { duration: 120 } }
+
+                        Text {
+                            anchors.centerIn: parent
                             text: "S"
-                            color: root.isSolo ? "#00e388" : Qt.rgba(0.73, 0.8, 0.73, 0.6)
-                            font.pixelSize: 13
-                            font.weight: Font.Bold
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
+                            color: root.isSolo ? "white" : "#d9d9d9"
+                            font.bold: true
+                            font.pixelSize: 12
                         }
-                        onClicked: root.soloClicked()
+
+                        MouseArea {
+                            id: ma2
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.soloClicked()
+                        }
                     }
 
-                    Button {
-                        width: 36
-                        height: 36
-                        flat: true
-                        background: Rectangle {
-                            radius: 8
-                            color: parent.hovered ? Qt.rgba(1, 1, 1, 0.05) : "transparent"
-                            border.color: Qt.rgba(1, 1, 1, 0.06)
-                            border.width: 1
+                    Rectangle {
+                        id: downloadBtn
+                        width: 34
+                        height: 34
+                        radius: 9
+
+                        color: ma3.containsMouse
+                               ? Qt.rgba(1,1,1,0.08)
+                               : Qt.rgba(1,1,1,0.04)
+
+                        border.color: Qt.rgba(1,1,1,0.08)
+                        border.width: 1
+
+                        scale: ma3.pressed ? 0.92 : 1.0
+
+                        Behavior on scale { NumberAnimation { duration: 90 } }
+                        Behavior on color { ColorAnimation { duration: 120 } }
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "\uE2C4"
+                            font.family: "Material Symbols Outlined"
+                            color: "#d9d9d9"
+                            font.pixelSize: 13
                         }
-                        contentItem: Text {
-                            text: "\uE2C4"; font.family: "Material Symbols Outlined"
-                            color: Qt.rgba(0.73, 0.8, 0.73, 0.6)
-                            font.pixelSize: 14
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
+
+                        MouseArea {
+                            id: ma3
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.downloadClicked()
                         }
-                        onClicked: root.downloadClicked()
                     }
                 }
             }

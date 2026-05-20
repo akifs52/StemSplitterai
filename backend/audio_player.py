@@ -110,6 +110,14 @@ class AudioEngine(QObject):
             p.setVolume(self._master_volume)
 
     @Slot()
+    def previous(self):
+        pass
+
+    @Slot()
+    def next(self):
+        pass
+
+    @Slot()
     def stopAll(self):
         for p in self._players.values():
             p.stop()

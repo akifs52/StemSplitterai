@@ -480,6 +480,20 @@ class BackendController(QObject):
             pass
 
     @Slot()
+    def clearSolo(self):
+        for n, p in self._audio_engine._players.items():
+            p.setMuted(False)
+        self._soloed_stems.clear()
+
+    @Slot(str)
+    def setSolo(self, name):
+        self.clearSolo()
+        self._soloed_stems.add(name)
+        for n, p in self._audio_engine._players.items():
+            if n != name:
+                p.setMuted(True)
+
+    @Slot()
     def cancelSplit(self):
         self._splitter.cancel()
 
