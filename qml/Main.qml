@@ -8,9 +8,18 @@ import "components"
 ApplicationWindow {
     id: app
     visible: true
-    width: 1400
-    height: 900
+
+    width: 1210
+    height: 780
+
+    minimumWidth: 1100
+    minimumHeight: 720
+
+    x: (Screen.width - width) / 2
+    y: (Screen.height - height) / 2
+
     title: "SonicSplit AI"
+
     flags: Qt.FramelessWindowHint | Qt.Window
     color: "transparent"
 
@@ -450,6 +459,34 @@ ApplicationWindow {
 
                             Row { width: parent.width; spacing: 24
                                 Rectangle { width: (parent.width - 24) * 0.48; height: 330; radius: 24; color: Qt.rgba(1,1,1,0.03); border.color: Qt.rgba(1,1,1,0.08); border.width: 1
+                                    Column { anchors.fill: parent; anchors.margins: 20; spacing: 16
+                                        Item { width: parent.width; height: 24
+                                            Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Acceleration Engine"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 18; font.weight: Font.DemiBold }
+                                            Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "\uE322"; font.family: "Material Symbols Outlined"; font.pixelSize: 20 }
+                                        }
+                                        Rectangle { width: parent.width; height: 52; radius: 10; color: Qt.rgba(0,0.89,0.53,0.04); border.color: Qt.rgba(0,0.89,0.53,0.25); border.width: 1
+                                            Item { anchors.fill: parent; anchors.margins: 16
+                                                Column { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
+                                                    Text { text: "NVIDIA CUDA (GPU)"; color: "#00e388"; font.family: "Inter"; font.pixelSize: 15; font.weight: Font.DemiBold }
+                                                    Text { text: "Recommended for batch processing"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11 }
+                                                }
+                                                Rectangle { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; width: 18; height: 18; radius: 9; color: "#00e388"
+                                                    Rectangle { anchors.centerIn: parent; width: 6; height: 6; radius: 3; color: "#121414" }
+                                                }
+                                            }
+                                        }
+                                        Rectangle { width: parent.width; height: 52; radius: 10; color: "transparent"; border.color: Qt.rgba(1,1,1,0.06); border.width: 1
+                                            Item { anchors.fill: parent; anchors.margins: 16
+                                                Column { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
+                                                    Text { text: "CPU Cluster"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 15; font.weight: Font.DemiBold }
+                                                    Text { text: "Standard high-precision threads"; color: Qt.rgba(0.73,0.8,0.73,0.35); font.family: "Inter"; font.pixelSize: 11 }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Rectangle { width: (parent.width - 24) * 0.48; height: 330; radius: 24; color: Qt.rgba(1,1,1,0.03); border.color: Qt.rgba(1,1,1,0.08); border.width: 1
                                     Column { anchors.fill: parent; anchors.margins: 20; spacing: 18
                                         Item { width: parent.width; height: 24
                                             Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Demucs Configuration"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 18; font.weight: Font.DemiBold }
@@ -516,7 +553,9 @@ ApplicationWindow {
                                     }
                                 }
 
-                                Rectangle { width: (parent.width - 24) * 0.48; height: 330; radius: 24; color: Qt.rgba(1,1,1,0.03); border.color: Qt.rgba(1,1,1,0.08); border.width: 1
+                            }
+                            Row { width: parent.width; spacing: 24
+                                Rectangle { width: (parent.width - 24) * 0.48; height: 200; radius: 24; color: Qt.rgba(1,1,1,0.03); border.color: Qt.rgba(1,1,1,0.08); border.width: 1
                                     Column { anchors.fill: parent; anchors.margins: 20; spacing: 16
                                         Text { text: "Real-time Telemetry"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 18; font.weight: Font.DemiBold }
                                         Column { width: parent.width; spacing: 6
