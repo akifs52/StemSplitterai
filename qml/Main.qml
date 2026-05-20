@@ -1,0 +1,599 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts 1.15
+import QtQuick.Window
+
+import "components"
+
+ApplicationWindow {
+    id: app
+    visible: true
+    width: 1400
+    height: 900
+    title: "SonicSplit AI"
+    flags: Qt.FramelessWindowHint | Qt.Window
+    color: "transparent"
+
+    property var audioEngine: null
+    property var currentStems: []
+    property int activeSection: 0
+    property int procProgress: 0
+
+    Rectangle {
+        id: mainRect
+        anchors.fill: parent
+        radius: 12
+        color: "#121414"
+
+        // ===== RESIZE HANDLES (high z-order to stay above content) =====
+        MouseArea { z: 100; width: parent.width; height: 6; anchors.top: parent.top; cursorShape: Qt.SizeVerCursor
+            property point clickPos
+            onPressed: { clickPos = Qt.point(mouseX, mouseY) }
+            onPositionChanged: { if (pressed) { app.height -= (mouseY - clickPos.y); app.y += (mouseY - clickPos.y) } }
+        }
+        MouseArea { z: 100; width: parent.width; height: 6; anchors.bottom: parent.bottom; cursorShape: Qt.SizeVerCursor
+            property point clickPos
+            onPressed: { clickPos = Qt.point(mouseX, mouseY) }
+            onPositionChanged: { if (pressed) { app.height += (mouseY - clickPos.y) } }
+        }
+        MouseArea { z: 100; width: 6; height: parent.height; anchors.left: parent.left; cursorShape: Qt.SizeHorCursor
+            property point clickPos
+            onPressed: { clickPos = Qt.point(mouseX, mouseY) }
+            onPositionChanged: { if (pressed) { app.width -= (mouseX - clickPos.x); app.x += (mouseX - clickPos.x) } }
+        }
+        MouseArea { z: 100; width: 6; height: parent.height; anchors.right: parent.right; cursorShape: Qt.SizeHorCursor
+            property point clickPos
+            onPressed: { clickPos = Qt.point(mouseX, mouseY) }
+            onPositionChanged: { if (pressed) { app.width += (mouseX - clickPos.x) } }
+        }
+        MouseArea { z: 100; width: 16; height: 16; anchors.top: parent.top; anchors.left: parent.left; cursorShape: Qt.SizeFDiagCursor
+            property point clickPos
+            onPressed: { clickPos = Qt.point(mouseX, mouseY) }
+            onPositionChanged: { if (pressed) { app.width -= (mouseX - clickPos.x); app.x += (mouseX - clickPos.x); app.height -= (mouseY - clickPos.y); app.y += (mouseY - clickPos.y) } }
+        }
+        MouseArea { z: 100; width: 16; height: 16; anchors.top: parent.top; anchors.right: parent.right; cursorShape: Qt.SizeBDiagCursor
+            property point clickPos
+            onPressed: { clickPos = Qt.point(mouseX, mouseY) }
+            onPositionChanged: { if (pressed) { app.width += (mouseX - clickPos.x); app.height -= (mouseY - clickPos.y); app.y += (mouseY - clickPos.y) } }
+        }
+        MouseArea { z: 100; width: 16; height: 16; anchors.bottom: parent.bottom; anchors.left: parent.left; cursorShape: Qt.SizeBDiagCursor
+            property point clickPos
+            onPressed: { clickPos = Qt.point(mouseX, mouseY) }
+            onPositionChanged: { if (pressed) { app.width -= (mouseX - clickPos.x); app.x += (mouseX - clickPos.x); app.height += (mouseY - clickPos.y) } }
+        }
+        MouseArea { z: 100; width: 16; height: 16; anchors.bottom: parent.bottom; anchors.right: parent.right; cursorShape: Qt.SizeFDiagCursor
+            property point clickPos
+            onPressed: { clickPos = Qt.point(mouseX, mouseY) }
+            onPositionChanged: { if (pressed) { app.width += (mouseX - clickPos.x); app.height += (mouseY - clickPos.y) } }
+        }
+
+        Column {
+            anchors.fill: parent
+            spacing: 0
+
+            TopBar {
+                id: topBar
+                gpuInfo: backend ? backend.gpuInfo : "Checking..."
+                gpuAvailable: backend ? backend.gpuAvailable : false
+                activeTab: activeSection
+                onTabClicked: function(i) { activeSection = i }
+                onMinimizeClicked: app.showMinimized()
+                onCloseClicked: Qt.quit()
+            }
+
+            Item {
+                width: parent.width
+                height: parent.height - topBar.height - 72
+
+                // ===== DASHBOARD (Section 0) =====
+                Rectangle {
+                    anchors.fill: parent
+                    color: "transparent"
+                    visible: activeSection === 0
+
+                    Flickable {
+                        anchors.fill: parent
+                        anchors.margins: 32
+                        contentHeight: dashCol.height + 60
+                        clip: true
+                        ScrollBar.vertical: ScrollBar { width: 4; policy: ScrollBar.AsNeeded }
+
+                        Column {
+                            id: dashCol
+                            width: parent.width
+                            spacing: 24
+
+                            Column { spacing: 6
+                                Text { text: "Source Separation"; color: "#e2e2e2"; font.family: "Montserrat"; font.pixelSize: 30; font.weight: Font.Bold }
+                                Text { text: "Upload an audio file to deconstruct into high-fidelity stems."; color: Qt.rgba(0.73, 0.8, 0.73, 0.55); font.family: "Inter"; font.pixelSize: 14 }
+                            }
+
+                            Rectangle {
+                                width: parent.width
+                                height: 280
+                                radius: 32
+                                color: "transparent"
+                                border.color: Qt.rgba(1, 1, 1, 0.12)
+                                border.width: 2
+
+
+                                DropZone {
+                                    anchors.fill: parent
+                                    onFileDropped: function(path) {
+                                        if (backend) { backend.startSplit(path); activeSection = 1 }
+                                    }
+                                }
+                            }
+
+                            Row {
+                                width: parent.width
+                                spacing: 24
+
+                                Rectangle {
+                                    width: (parent.width - 24) * 0.62
+                                    height: 200
+                                    radius: 24
+                                    color: Qt.rgba(1, 1, 1, 0.03)
+                                    border.color: Qt.rgba(1, 1, 1, 0.08)
+                                    border.width: 1
+
+                                    Column {
+                                        anchors.fill: parent
+                                        anchors.margins: 20
+                                        spacing: 12
+
+                                        Row { spacing: 8
+                                            Text { text: "\uE889"; font.family: "Material Symbols Outlined"; font.pixelSize: 18; anchors.verticalCenter: parent.verticalCenter }
+                                            Text { text: "Recent Separations"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 18; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
+                                        }
+
+                                        ListView {
+                                            id: historyList
+                                            width: parent.width
+                                            height: parent.height - 55
+                                            interactive: false
+                                            model: backend ? backend.historyModel : null
+                                            delegate: Rectangle {
+                                                width: parent.width; height: 44; color: "transparent"
+                                                Row { spacing: 12; anchors.fill: parent; anchors.margins: 4
+                                                    Rectangle { width: 36; height: 36; radius: 8; color: Qt.rgba(0,0.89,0.53,0.08); anchors.verticalCenter: parent.verticalCenter
+                                                        Text { anchors.centerIn: parent; text: "\uE40B"; font.family: "Material Symbols Outlined"; color: "#00e388"; font.pixelSize: 16 }
+                                                    }
+                                                     Column { anchors.verticalCenter: parent.verticalCenter
+                                                         Text { text: model.file_name || ""; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 14; font.weight: Font.Medium; elide: Text.ElideMiddle; width: 200 }
+                                                         Row { spacing: 4
+                                                             Text { text: model.status === "ok" ? "4 Stems" : ""; color: Qt.rgba(0.73,0.8,0.73,0.4); font.family: "Inter"; font.pixelSize: 11 }
+                                                             Text { text: (model.status === "ok" && model.created_at) ? "\u2022" : ""; color: Qt.rgba(0.73,0.8,0.73,0.3); font.family: "Inter"; font.pixelSize: 11 }
+                                                             Text { text: model.created_at || ""; color: Qt.rgba(0.73,0.8,0.73,0.4); font.family: "Inter"; font.pixelSize: 11 }
+                                                         }
+                                                     }
+                                                     Item { width: 10; height: 1 }
+                                                     Row { anchors.verticalCenter: parent.verticalCenter; spacing: 8
+                                                         Text { text: "\uE037"; font.family: "Material Symbols Outlined"; color: Qt.rgba(0.73,0.8,0.73,0.4); font.pixelSize: 14 }
+                                                         Text { text: "\uE2C4"; font.family: "Material Symbols Outlined"; color: Qt.rgba(0.73,0.8,0.73,0.4); font.pixelSize: 14 }
+                                                     }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Rectangle {
+                                    width: (parent.width - 24) * 0.38
+                                    height: 200
+                                    radius: 24
+                                    color: Qt.rgba(1, 1, 1, 0.03)
+                                    border.color: Qt.rgba(1, 1, 1, 0.08)
+                                    border.width: 1
+
+                                    Column {
+                                        anchors.fill: parent
+                                        anchors.margins: 20
+                                        spacing: 18
+
+                                        Text { text: "Engine Status"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 18; font.weight: Font.DemiBold }
+
+                                        Column { width: parent.width; spacing: 6
+                                            Item { width: parent.width; height: 14
+                                                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "GPU LOAD"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 0.8 }
+                                                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "0%"; color: "#00e388"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
+                                            }
+                                            Rectangle { width: parent.width; height: 4; radius: 2; color: Qt.rgba(1,1,1,0.06)
+                                                Rectangle { width: 0; height: parent.height; radius: 2; color: "#00e388" }
+                                            }
+                                        }
+
+                                        Column { width: parent.width; spacing: 6
+                                            Item { width: parent.width; height: 14
+                                                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "TRACKS SPLITTED"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 0.8 }
+                                                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "0"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
+                                            }
+                                        }
+
+                                        Column { width: parent.width; spacing: 6
+                                            Item { width: parent.width; height: 14
+                                                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "SPEED FACTOR"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 0.8 }
+                                                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "0.0x"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ===== PROCESSING (Section 1) =====
+                Rectangle {
+                    anchors.fill: parent
+                    color: "transparent"
+                    visible: activeSection === 1
+
+                    Flickable {
+                        anchors.fill: parent
+                        anchors.margins: 32
+                        contentHeight: procCol.height + 60
+                        clip: true
+                        ScrollBar.vertical: ScrollBar { width: 4; policy: ScrollBar.AsNeeded }
+
+                        Column {
+                            id: procCol
+                            width: parent.width
+                            spacing: 24
+
+                            Column { spacing: 8; width: parent.width
+                                Item { width: parent.width; height: 34
+                                    Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Processing Audio"; color: "#e2e2e2"; font.family: "Montserrat"; font.pixelSize: 28; font.weight: Font.Bold }
+                                    Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: app.procProgress + "%"; color: "#00e388"; font.family: "Montserrat"; font.pixelSize: 22; font.weight: Font.Bold }
+                                }
+                                Text { text: "Splitting audio into separate stems..."; color: Qt.rgba(0.73,0.8,0.73,0.55); font.family: "Inter"; font.pixelSize: 14 }
+
+                                Rectangle { width: parent.width; height: 6; radius: 3; color: Qt.rgba(1,1,1,0.06)
+                                    Rectangle { height: parent.height; radius: 3; color: "#00e388"; width: parent.width * app.procProgress / 100; Behavior on width { NumberAnimation { duration: 400 } } }
+                                }
+                            }
+
+                            WavePanel {
+                                id: wavePanel
+                                width: parent.width
+                                height: 200
+                                panelLabel: "Original Waveform"
+                            }
+
+                            Row {
+                                width: parent.width
+                                spacing: 24
+
+                                Rectangle {
+                                    width: (parent.width - 24) * 0.62
+                                    height: 200
+                                    radius: 24
+                                    color: Qt.rgba(1, 1, 1, 0.03)
+                                    border.color: Qt.rgba(1, 1, 1, 0.08)
+                                    border.width: 1
+
+                                    Column {
+                                        anchors.fill: parent; anchors.margins: 20; spacing: 8
+                                        Row { spacing: 8
+                                            Text { text: "\uEB8E"; font.family: "Material Symbols Outlined"; font.pixelSize: 16; anchors.verticalCenter: parent.verticalCenter }
+                                            Text { text: "Status Log"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 16; font.weight: Font.DemiBold }
+                                        }
+                                        Rectangle { width: parent.width; height: parent.height - 55; radius: 8; color: Qt.rgba(0,0,0,0.25)
+                                            Column { anchors.fill: parent; anchors.margins: 12; spacing: 3
+                                            Text { text: statusLabel.text || "Waiting for file..."; color: statusLabel.text && statusLabel.text.indexOf("not found") > 0 ? "#ffb4ab" : "#00e388"; font.family: "Inter"; font.pixelSize: 12 }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Rectangle {
+                                    width: (parent.width - 24) * 0.38
+                                    height: 200
+                                    radius: 24
+                                    color: Qt.rgba(1, 1, 1, 0.03)
+                                    border.color: Qt.rgba(1, 1, 1, 0.08)
+                                    border.width: 1
+
+                                    Column {
+                                        anchors.fill: parent; anchors.margins: 20; spacing: 16
+                                        Text { text: "Resource Usage"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 16; font.weight: Font.DemiBold }
+
+                                        Column { width: parent.width; spacing: 6
+                                            Item { width: parent.width; height: 14
+                                                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "GPU LOAD"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 0.8 }
+                                                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "84%"; color: "#00e388"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
+                                            }
+                                            Rectangle { width: parent.width; height: 4; radius: 2; color: Qt.rgba(1,1,1,0.06)
+                                                Rectangle { width: parent.width * 0.84; height: parent.height; radius: 2; color: "#00e388" }
+                                            }
+                                        }
+
+                                        Column { width: parent.width; spacing: 6
+                                            Item { width: parent.width; height: 14
+                                                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "VRAM"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 0.8 }
+                                                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "0 / 0 GB"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
+                                            }
+                                            Rectangle { width: parent.width; height: 4; radius: 2; color: Qt.rgba(1,1,1,0.06)
+                                                Rectangle { width: 0; height: parent.height; radius: 2; color: Qt.rgba(0.73,0.8,0.73,0.4) }
+                                            }
+                                        }
+
+                                        Row { spacing: 12
+                                            Button { flat: true
+                                                background: Rectangle { radius: 8; color: parent.hovered ? Qt.rgba(1,1,1,0.06) : Qt.rgba(1,1,1,0.02); border.color: Qt.rgba(1,1,1,0.08); border.width: 1 }
+                                                contentItem: Text { text: "Pause"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 13; font.weight: Font.Medium; leftPadding: 16; rightPadding: 16 }
+                                            }
+                                            Button { flat: true
+                                                background: Rectangle { radius: 8; color: parent.hovered ? Qt.rgba(0.93,0,0.03,0.1) : Qt.rgba(0.93,0,0.03,0.04); border.color: Qt.rgba(0.93,0,0.03,0.15); border.width: 1 }
+                                                contentItem: Text { text: "Cancel"; color: "#ffb4ab"; font.family: "Inter"; font.pixelSize: 13; font.weight: Font.Medium; leftPadding: 16; rightPadding: 16 }
+                                                onClicked: { if (backend) backend.cancelSplit(); activeSection = 0 }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ===== STEM MIXER (Section 2) =====
+                Rectangle {
+                    anchors.fill: parent
+                    color: "transparent"
+                    visible: activeSection === 2
+
+                    Flickable {
+                        anchors.fill: parent
+                        anchors.margins: 32
+                        contentHeight: mixCol.height + 60
+                        clip: true
+                        ScrollBar.vertical: ScrollBar { width: 4; policy: ScrollBar.AsNeeded }
+
+                        Column {
+                            id: mixCol
+                            width: parent.width
+                            spacing: 24
+
+                            Item { width: parent.width; height: 70
+                                Column { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; spacing: 4
+                                    Text { text: "Stem Mixer"; color: "#e2e2e2"; font.family: "Montserrat"; font.pixelSize: 30; font.weight: Font.Bold }
+                                    Text { text: "Fine-tune individual components of your track with AI precision."; color: Qt.rgba(0.73,0.8,0.73,0.55); font.family: "Inter"; font.pixelSize: 14 }
+                                }
+                                Rectangle { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; height: 44; radius: 12; color: "#00e388"
+                                    Row { anchors.centerIn: parent; spacing: 6; leftPadding: 20; rightPadding: 20
+                                        Text { text: "\uE2C4"; font.family: "Material Symbols Outlined"; color: "#00391e"; font.pixelSize: 16; anchors.verticalCenter: parent.verticalCenter }
+                                        Text { text: "Export All"; color: "#00391e"; font.family: "Inter"; font.pixelSize: 13; font.weight: Font.Bold; anchors.verticalCenter: parent.verticalCenter }
+                                    }
+                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true }
+                                }
+                            }
+
+                            Repeater {
+                                id: stemRepeater
+                                model: currentStems
+                                delegate: StemTrack {
+                                    width: parent.width
+                                    stemName: modelData.name
+                                    stemLabel: "STEM " + ("0" + (index + 1)).slice(-2)
+                                    accentColor: ({"vocals":"#FF69B4","drums":"#4FC3F7","bass":"#FFD700","other":"#00e388"})[modelData.name.toLowerCase()] || "#00e388"
+                                    onMuteClicked: { if (audioEngine) audioEngine.toggleMute(modelData.name) }
+                                    onSoloClicked: { if (audioEngine) audioEngine.toggleSolo(modelData.name) }
+                                    onGainAdjusted: function(v) { if (audioEngine) audioEngine.setStemGain(modelData.name, v) }
+                                }
+                            }
+
+                            Row {
+                                width: parent.width
+                                spacing: 24
+                                visible: currentStems.length > 0
+
+                                Repeater {
+                                    model: [
+                                        {icon: "\uE9E4", label: "Sample Rate", value: "48 kHz / 24-bit"},
+                                        {icon: "\uEF5B", label: "Processing Load", value: "0.0% CPU"},
+                                        {icon: "\uE889", label: "Last Edit", value: "Just now"}
+                                    ]
+                                    delegate: Rectangle {
+                                        width: (parent.width - 48) / 3
+                                        height: 80
+                                        radius: 16
+                                        color: Qt.rgba(1,1,1,0.03)
+                                        border.color: Qt.rgba(1,1,1,0.08)
+                                        border.width: 1
+
+                                        Row { anchors.fill: parent; anchors.margins: 16; spacing: 12
+                                            Rectangle { width: 40; height: 40; radius: 8; color: Qt.rgba(0,0.89,0.53,0.08); anchors.verticalCenter: parent.verticalCenter
+                                                Text { anchors.centerIn: parent; text: modelData.icon; font.family: "Material Symbols Outlined"; font.pixelSize: 20 }
+                                            }
+                                            Column { anchors.verticalCenter: parent.verticalCenter
+                                                Text { text: modelData.label; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 0.8 }
+                                                Text { text: modelData.value; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 18; font.weight: Font.Bold }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ===== SETTINGS (Section 3) =====
+                Rectangle {
+                    anchors.fill: parent
+                    color: "transparent"
+                    visible: activeSection === 3
+
+                    Flickable {
+                        anchors.fill: parent
+                        anchors.margins: 32
+                        contentHeight: setCol.height + 60
+                        clip: true
+                        ScrollBar.vertical: ScrollBar { width: 4; policy: ScrollBar.AsNeeded }
+
+                        Column {
+                            id: setCol
+                            width: parent.width
+                            spacing: 24
+
+                            Column { spacing: 6
+                                Text { text: "System Preferences"; color: "#e2e2e2"; font.family: "Montserrat"; font.pixelSize: 30; font.weight: Font.Bold }
+                                Text { text: "Configure AI hardware acceleration and export parameters."; color: Qt.rgba(0.73,0.8,0.73,0.55); font.family: "Inter"; font.pixelSize: 14 }
+                            }
+
+                            Row { width: parent.width; spacing: 24
+                                Rectangle { width: (parent.width - 24) * 0.48; height: 200; radius: 24; color: Qt.rgba(1,1,1,0.03); border.color: Qt.rgba(1,1,1,0.08); border.width: 1
+                                    Column { anchors.fill: parent; anchors.margins: 20; spacing: 16
+                                        Item { width: parent.width; height: 24
+                                            Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Acceleration Engine"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 18; font.weight: Font.DemiBold }
+                                            Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "\uE322"; font.family: "Material Symbols Outlined"; font.pixelSize: 20 }
+                                        }
+                                        Rectangle { width: parent.width; height: 52; radius: 10; color: Qt.rgba(0,0.89,0.53,0.04); border.color: Qt.rgba(0,0.89,0.53,0.25); border.width: 1
+                                            Item { anchors.fill: parent; anchors.margins: 16
+                                                Column { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
+                                                    Text { text: "NVIDIA CUDA (GPU)"; color: "#00e388"; font.family: "Inter"; font.pixelSize: 15; font.weight: Font.DemiBold }
+                                                    Text { text: "Recommended for batch processing"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11 }
+                                                }
+                                                Rectangle { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; width: 18; height: 18; radius: 9; color: "#00e388"
+                                                    Rectangle { anchors.centerIn: parent; width: 6; height: 6; radius: 3; color: "#121414" }
+                                                }
+                                            }
+                                        }
+                                        Rectangle { width: parent.width; height: 52; radius: 10; color: "transparent"; border.color: Qt.rgba(1,1,1,0.06); border.width: 1
+                                            Item { anchors.fill: parent; anchors.margins: 16
+                                                Column { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
+                                                    Text { text: "CPU Cluster"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 15; font.weight: Font.DemiBold }
+                                                    Text { text: "Standard high-precision threads"; color: Qt.rgba(0.73,0.8,0.73,0.35); font.family: "Inter"; font.pixelSize: 11 }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Rectangle { width: (parent.width - 24) * 0.48; height: 200; radius: 24; color: Qt.rgba(1,1,1,0.03); border.color: Qt.rgba(1,1,1,0.08); border.width: 1
+                                    Column { anchors.fill: parent; anchors.margins: 20; spacing: 16
+                                        Text { text: "Real-time Telemetry"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 18; font.weight: Font.DemiBold }
+                                        Column { width: parent.width; spacing: 6
+                                            Item { width: parent.width; height: 14
+                                                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "GPU VRAM Usage"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 0.8 }
+                                                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "0 / 0 GB"; color: "#00e388"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
+                                            }
+                                            Rectangle { width: parent.width; height: 4; radius: 2; color: Qt.rgba(1,1,1,0.06)
+                                                Rectangle { width: 0; height: parent.height; radius: 2; color: "#00e388" }
+                                            }
+                                        }
+                                        Column { width: parent.width; spacing: 6
+                                            Item { width: parent.width; height: 14
+                                                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Tensor Core Load"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 0.8 }
+                                                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "0%"; color: "#00e388"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
+                                            }
+                                            Rectangle { width: parent.width; height: 4; radius: 2; color: Qt.rgba(1,1,1,0.06)
+                                                Rectangle { width: 0; height: parent.height; radius: 2; color: "#00e388" }
+                                            }
+                                        }
+                                        Text { text: "Hardware: " + (backend ? backend.gpuInfo : "Unknown"); color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 12 }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ===== BOTTOM PLAYER BAR =====
+            Rectangle {
+                width: parent.width
+                height: 72
+                color: Qt.rgba(0.12, 0.12, 0.12, 0.85)
+
+                Rectangle {
+                    anchors.top: parent.top
+                    width: parent.width
+                    height: 1
+                    color: Qt.rgba(1, 1, 1, 0.08)
+                }
+
+                Row {
+                    anchors.fill: parent
+                    anchors.leftMargin: 32
+                    anchors.rightMargin: 32
+
+                    Item {
+                        width: parent.width * 0.3
+                        height: parent.height
+                        Row { anchors.verticalCenter: parent.verticalCenter; spacing: 12
+                            Text { text: currentStems.length > 0 ? currentStems[0].name : ""; color: "#00e388"; font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 1; font.weight: Font.Medium; visible: currentStems.length > 0 }
+                            Rectangle { width: 120; height: 4; radius: 2; color: Qt.rgba(1,1,1,0.06); anchors.verticalCenter: parent.verticalCenter; visible: currentStems.length > 0
+                                Rectangle { width: parent.width * 0.35; height: parent.height; radius: 2; color: "#00e388" }
+                            }
+                        }
+                    }
+
+                    Item {
+                        width: parent.width * 0.4
+                        height: parent.height
+                        Row { anchors.centerIn: parent; spacing: 20
+                            Text { text: "\uE043"; font.family: "Material Symbols Outlined"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.pixelSize: 20; anchors.verticalCenter: parent.verticalCenter }
+                            Text { text: "\uE045"; font.family: "Material Symbols Outlined"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.pixelSize: 26; anchors.verticalCenter: parent.verticalCenter }
+                            Rectangle { width: 48; height: 48; radius: 24; color: "#00e388"; anchors.verticalCenter: parent.verticalCenter
+                                Text { anchors.centerIn: parent; text: "\uE037"; font.family: "Material Symbols Outlined"; color: "#00391e"; font.pixelSize: 28 }
+                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (audioEngine) audioEngine.togglePlayAll() } }
+                            }
+                            Text { text: "\uE044"; font.family: "Material Symbols Outlined"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.pixelSize: 26; anchors.verticalCenter: parent.verticalCenter }
+                            Text { text: "\uE040"; font.family: "Material Symbols Outlined"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.pixelSize: 20; anchors.verticalCenter: parent.verticalCenter }
+                        }
+                    }
+
+                    Item {
+                        width: parent.width * 0.3
+                        height: parent.height
+                        Row { anchors.verticalCenter: parent.verticalCenter; anchors.right: parent.right; spacing: 16
+                            Text { text: "\uE030"; font.family: "Material Symbols Outlined"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.pixelSize: 20; anchors.verticalCenter: parent.verticalCenter }
+                            Rectangle { width: 100; height: 4; radius: 2; color: Qt.rgba(1,1,1,0.06); anchors.verticalCenter: parent.verticalCenter
+                                Rectangle { width: parent.width * 0.8; height: parent.height; radius: 2; color: Qt.rgba(0.73,0.8,0.73,0.4) }
+                            }
+                            Text { text: "\uE8B8"; font.family: "Material Symbols Outlined"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.pixelSize: 20; anchors.verticalCenter: parent.verticalCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: activeSection = 3 } }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Backend connections
+    Text {
+        id: statusLabel
+        visible: false
+    }
+
+    Connections {
+        target: backend
+        function onSplitStarted(fp) { currentStems = []; activeSection = 1; if (audioEngine) audioEngine.clearAll() }
+        function onProgressUpdated(v) { app.procProgress = Math.min(v, 99) }
+        function onStatusUpdated(msg) { statusLabel.text = msg }
+        function onSplitFinished(status, stems) {
+            if (status === "ok") {
+                currentStems = stems; activeSection = 2
+                if (audioEngine) audioEngine.loadStems(stems)
+            } else {
+                statusLabel.text = status
+                app.procProgress = 0
+            }
+        }
+    }
+
+    Timer {
+        id: demucsCheck
+        interval: 500
+        onTriggered: {
+            if (backend && !backend.checkDemucs())
+                statusLabel.text = "Demucs not found. Install: pip install demucs"
+        }
+    }
+
+    Component.onCompleted: {
+        if (backend) {
+            backend.checkGpu()
+            demucsCheck.start()
+        }
+    }
+}
