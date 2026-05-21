@@ -338,14 +338,47 @@ class BackendController(QObject):
         self._log_to_db(file_path, stems, "cached")
 
     def _stems_from_dir(self, dir_path, original_path=None):
-        stems = []
+        stems_by_name = {}
+        preferred_ext = os.path.splitext(original_path or "")[1].lower()
         if os.path.isdir(dir_path):
+            if preferred_ext and preferred_ext != ".wav":
+                self._on_status_updated(f"Converting cached stems to {preferred_ext[1:].upper()}...")
+                for f in sorted(os.listdir(dir_path)):
+                    if f.lower().endswith(".wav"):
+                        self._convert_stem_to_format(os.path.join(dir_path, f), preferred_ext)
+
             for f in sorted(os.listdir(dir_path)):
-                if f.endswith((".wav", ".mp3", ".flac")):
-                    full_path = os.path.join(dir_path, f)
-                    stem_name = os.path.splitext(f)[0]
-                    stems.append({"name": stem_name, "path": full_path})
-        return stems
+                if not f.lower().endswith((".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac")):
+                    continue
+                full_path = os.path.join(dir_path, f)
+                stem_name, ext = os.path.splitext(f)
+                existing = stems_by_name.get(stem_name)
+                if existing is None or ext.lower() == preferred_ext:
+                    stems_by_name[stem_name] = full_path
+        return [{"name": name, "path": path} for name, path in sorted(stems_by_name.items())]
+
+    def _convert_stem_to_format(self, wav_path, target_ext):
+        target_path = os.path.splitext(wav_path)[0] + target_ext
+        if os.path.isfile(target_path) and os.path.getmtime(target_path) >= os.path.getmtime(wav_path):
+            return target_path
+
+        args = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", wav_path, "-vn"]
+        if target_ext == ".mp3":
+            args += ["-codec:a", "libmp3lame", "-q:a", "2"]
+        elif target_ext == ".flac":
+            args += ["-codec:a", "flac"]
+        elif target_ext == ".ogg":
+            args += ["-codec:a", "libvorbis", "-q:a", "6"]
+        elif target_ext in (".m4a", ".aac"):
+            args += ["-codec:a", "aac", "-b:a", "256k"]
+        args.append(target_path)
+
+        try:
+            subprocess.run(args, capture_output=True, text=True, check=True, timeout=600)
+            return target_path
+        except Exception as e:
+            self._log(f"Stem format conversion failed: {e}")
+            return wav_path
 
     def _on_split_finished(self, status, stems):
         self._log(f"Split finished: status={status}, stems={len(stems)}")

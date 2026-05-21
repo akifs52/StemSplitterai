@@ -3,6 +3,7 @@ import sys
 import time
 import tempfile
 import shutil
+import subprocess
 
 from PySide6.QtCore import QObject, Signal, Slot, QThread, QProcess
 
@@ -15,18 +16,66 @@ class SplitWorker(QObject):
     statusChanged = Signal(str)
     finished = Signal(str, list)
 
-    def __init__(self, file_path, output_dir, original_stem=None, models=None,
+    def __init__(self, file_path, output_dir, original_stem=None, original_ext=".wav", models=None,
                  segment_size=10, overlap=0.25, shifts=1):
         super().__init__()
         self.file_path = file_path
         self.output_dir = output_dir
         self.original_stem = original_stem
+        self.original_ext = original_ext.lower()
         self.models = models or ["htdemucs_6s", "htdemucs"]
         self.segment_size = segment_size
         self.overlap = overlap
         self.shifts = shifts
         self._cancelled = False
         self._process = None
+
+    def _conversion_args(self, src_path, dst_path):
+        ext = os.path.splitext(dst_path)[1].lower()
+        args = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", src_path, "-vn"]
+        if ext == ".mp3":
+            args += ["-codec:a", "libmp3lame", "-q:a", "2"]
+        elif ext == ".flac":
+            args += ["-codec:a", "flac"]
+        elif ext == ".ogg":
+            args += ["-codec:a", "libvorbis", "-q:a", "6"]
+        elif ext in (".m4a", ".aac"):
+            args += ["-codec:a", "aac", "-b:a", "256k"]
+        args.append(dst_path)
+        return args
+
+    def _convert_stem_if_needed(self, wav_path):
+        if self.original_ext in ("", ".wav"):
+            return wav_path
+
+        dst_path = os.path.splitext(wav_path)[0] + self.original_ext
+        if os.path.isfile(dst_path) and os.path.getmtime(dst_path) >= os.path.getmtime(wav_path):
+            return dst_path
+
+        subprocess.run(
+            self._conversion_args(wav_path, dst_path),
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=600,
+        )
+        return dst_path
+
+    def _collect_stems(self, out_path):
+        stems_by_name = {}
+        if not os.path.isdir(out_path):
+            return []
+
+        for f in sorted(os.listdir(out_path)):
+            if not f.lower().endswith((".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac")):
+                continue
+            full_path = os.path.join(out_path, f)
+            stem_name, ext = os.path.splitext(f)
+            existing = stems_by_name.get(stem_name)
+            if existing is None or ext.lower() == self.original_ext:
+                stems_by_name[stem_name] = full_path
+
+        return [{"name": name, "path": path} for name, path in sorted(stems_by_name.items())]
 
     def cancel(self):
         self._cancelled = True
@@ -107,13 +156,13 @@ class SplitWorker(QObject):
                 except Exception:
                     pass
 
-        stems = []
-        if os.path.isdir(out_path):
-            for f in sorted(os.listdir(out_path)):
-                if f.endswith((".wav", ".mp3", ".flac")):
-                    full_path = os.path.join(out_path, f)
-                    stem_name = os.path.splitext(f)[0]
-                    stems.append({"name": stem_name, "path": full_path})
+        if self.original_ext != ".wav":
+            self.statusChanged.emit(f"Converting stems to {self.original_ext[1:].upper()}...")
+            for f in sorted(os.listdir(out_path)) if os.path.isdir(out_path) else []:
+                if f.lower().endswith(".wav"):
+                    self._convert_stem_if_needed(os.path.join(out_path, f))
+
+        stems = self._collect_stems(out_path)
 
         return stems, None
 
@@ -173,6 +222,7 @@ class Splitter(QObject):
 
         # Demucs has issues with non-ASCII paths on Windows; copy to temp if needed
         original_stem = os.path.splitext(os.path.basename(file_path))[0]
+        original_ext = os.path.splitext(file_path)[1].lower() or ".wav"
         try:
             file_path.encode("ascii")
             safe_path = file_path
@@ -193,6 +243,7 @@ class Splitter(QObject):
 
         self._thread = QThread()
         self._worker = SplitWorker(safe_path, output_dir, original_stem=original_stem,
+                                    original_ext=original_ext,
                                     models=[self.selectedModel],
                                     segment_size=self.segmentSize,
                                     overlap=self.overlap,
