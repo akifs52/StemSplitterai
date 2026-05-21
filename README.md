@@ -30,6 +30,29 @@ pip install -r requirements.txt
 python main.py
 ```
 
+## Web App
+
+Run the FastAPI web version locally:
+
+```bash
+pip install -r requirements-web.txt
+python -m uvicorn web_app:app --host 127.0.0.1 --port 8000
+```
+
+Open `http://127.0.0.1:8000`.
+
+## Docker Web App
+
+Build and run the web app with Docker:
+
+```bash
+docker compose up --build
+```
+
+Open `http://127.0.0.1:8000`.
+
+The compose file mounts `uploads/` and `separated/` so uploaded files and generated stems persist on the host.
+
 ## Project Structure
 
 ```

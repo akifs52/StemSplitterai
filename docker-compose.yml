@@ -1,0 +1,12 @@
+services:
+  stemsplit-web:
+    build: .
+    container_name: stemsplit-web
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./separated:/app/separated
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
