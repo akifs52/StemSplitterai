@@ -26,9 +26,13 @@ class SplitWorker(QObject):
         self.overlap = overlap
         self.shifts = shifts
         self._cancelled = False
+        self._process = None
 
     def cancel(self):
         self._cancelled = True
+        if self._process and self._process.state() != QProcess.NotRunning:
+            self._process.kill()
+            self._process.waitForFinished(3000)
 
     def _run_model(self, model_name):
         base_name = os.path.splitext(os.path.basename(self.file_path))[0]
@@ -39,6 +43,7 @@ class SplitWorker(QObject):
         self.progressChanged.emit(1)
 
         process = QProcess()
+        self._process = process
 
         program = sys.executable or "python"
         args = ["-m", "demucs", "-n", model_name, "-o", self.output_dir,
@@ -77,8 +82,11 @@ class SplitWorker(QObject):
                     last_progress = progress
                     last_emit = now
 
+        if self._cancelled and process.state() != QProcess.NotRunning:
+            process.kill()
         process.waitForFinished(30000)
         exit_code = process.exitCode()
+        self._process = None
 
         if self._cancelled:
             return None, "Cancelled"

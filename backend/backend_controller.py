@@ -49,6 +49,41 @@ class HistoryListModel(QAbstractListModel):
         self.endResetModel()
 
 
+class WaveformWorker(QThread):
+    finished = Signal(str, list)
+
+    def __init__(self, file_path, name="original", parent=None):
+        super().__init__(parent)
+        self.file_path = file_path
+        self.name = name
+
+    def run(self):
+        try:
+            data = compute_waveform(self.file_path)
+            self.finished.emit(self.name, data)
+        except Exception:
+            self.finished.emit(self.name, [])
+
+
+class StemsWaveformWorker(QThread):
+    stemReady = Signal(str, list)
+    finished = Signal()
+
+    def __init__(self, stems, parent=None):
+        super().__init__(parent)
+        self.stems = stems
+
+    def run(self):
+        try:
+            for stem in self.stems:
+                data = compute_waveform(stem["path"], max_points=80)
+                if data:
+                    self.stemReady.emit(stem["name"], data)
+        except Exception:
+            pass
+        self.finished.emit()
+
+
 class BackendController(QObject):
     splitStarted = Signal(str)
     progressUpdated = Signal(int)
@@ -57,7 +92,7 @@ class BackendController(QObject):
     stemToggled = Signal(str, bool)
     stemMuteChanged = Signal(str, bool)
     stemSoloChanged = Signal(str, bool)
-    waveformReady = Signal(str, object)
+    waveformReady = Signal(str, list)
     stemWaveformReady = Signal(str, list)
     gpuInfoChanged = Signal()
     positionChanged = Signal(float)
@@ -254,13 +289,8 @@ class BackendController(QObject):
         self.splitStarted.emit(file_path)
         self._on_status_updated("Preparing...")
 
-        # Compute waveform for the original file immediately
-        try:
-            data = compute_waveform(file_path)
-            if data:
-                self.waveformReady.emit("original", data)
-        except Exception as e:
-            self._log(f"Original waveform error: {e}")
+        # Compute waveform for the original file asynchronously in background thread
+        self._compute_original_waveform(file_path)
 
         cache_path = self._cache_manager.has_cached(file_path)
         if cache_path:
@@ -345,24 +375,22 @@ class BackendController(QObject):
         self._compute_waveform_from_stems(stems)
 
     def _compute_waveform_from_stems(self, stems):
-        for stem in stems:
-            try:
-                data = compute_waveform(stem["path"], max_points=80)
-                if data:
-                    self.stemWaveformReady.emit(stem["name"], data)
-            except Exception as e:
-                self._log(f"Stem waveform error ({stem['name']}): {e}")
+        self._log("Starting background stems waveform worker")
+        self._stems_waveform_thread = StemsWaveformWorker(stems, self)
+        self._stems_waveform_thread.stemReady.connect(self.stemWaveformReady.emit)
+        self._stems_waveform_thread.finished.connect(self._stems_waveform_thread.deleteLater)
+        self._stems_waveform_thread.start()
 
-        # Also emit a combined waveform for the main wave panel
-        for stem in stems:
-            if stem["name"].lower() == "vocals":
-                data = compute_waveform(stem["path"])
-                self.waveformReady.emit(stem["name"], data)
-                break
-        else:
-            data = compute_waveform(stems[0]["path"]) if stems else []
-            if stems:
-                self.waveformReady.emit(stems[0]["name"], data)
+    def _compute_original_waveform(self, file_path):
+        self._log(f"Computing original waveform for: {file_path}")
+        self._waveform_thread = WaveformWorker(file_path, "original", self)
+        self._waveform_thread.finished.connect(self._on_original_waveform_ready)
+        self._waveform_thread.finished.connect(self._waveform_thread.deleteLater)
+        self._waveform_thread.start()
+
+    def _on_original_waveform_ready(self, name, data):
+        self._log(f"Original waveform ready: {len(data)} points")
+        self.waveformReady.emit(name, data)
 
     def _log_to_db(self, file_path, stems, status):
         try:
@@ -600,12 +628,7 @@ class BackendController(QObject):
         self.clearAll()
         self._current_file = file_path
 
-        # Compute waveform for the original file immediately
-        try:
-            data = compute_waveform(file_path)
-            if data:
-                self.waveformReady.emit("original", data)
-        except Exception as e:
-            self._log(f"Original waveform error: {e}")
+        # Compute waveform for the original file asynchronously in background thread
+        self._compute_original_waveform(file_path)
 
         self.splitFinished.emit("ok", stems_json)

@@ -48,7 +48,7 @@ Rectangle {
         spacing: 40
 
         Text {
-            text: "SonicSplit AI"
+            text: "StemSplit AI"
             color: "#00e388"
             font.family: "Montserrat"
             font.pixelSize: 22
@@ -152,7 +152,7 @@ Rectangle {
                 delegate: Rectangle {
                     width: 32; height: 32; radius: 8
                     color: ma.containsMouse ? Qt.rgba(1,1,1,0.05) : "transparent"
-                    Text { anchors.centerIn: parent; text: modelData; font.family: "Material Symbols Outlined"; font.pixelSize: 16 }
+                    Text { anchors.centerIn: parent; text: modelData; font.family: "Material Symbols Outlined"; color: "#e2e2e2"; font.pixelSize: 16 }
                     MouseArea { id: ma; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor }
                 }
             }
@@ -160,7 +160,7 @@ Rectangle {
             Rectangle {
                 width: 32; height: 32; radius: 16; color: "transparent"
                 border.color: Qt.rgba(1,1,1,0.15); border.width: 1
-                Text { anchors.centerIn: parent; text: "\uE853"; font.family: "Material Symbols Outlined"; font.pixelSize: 16 }
+                Text { anchors.centerIn: parent; text: "\uE853"; font.family: "Material Symbols Outlined"; color: "#e2e2e2"; font.pixelSize: 16 }
             }
 
             Rectangle { width: 1; height: 20; color: Qt.rgba(1,1,1,0.08) }

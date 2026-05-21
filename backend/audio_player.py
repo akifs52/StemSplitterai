@@ -16,6 +16,7 @@ class StemPlayer(QObject):
         self._player.setAudioOutput(self._audio_output)
         self._muted = False
         self._solo = False
+        self._master_volume = 1.0
         self._gain = 1.0
         self._pan = 0.0
         self._name = ""
@@ -56,7 +57,8 @@ class StemPlayer(QObject):
 
     @Slot(float)
     def setVolume(self, vol):
-        self._audio_output.setVolume(vol)
+        self._master_volume = max(0.0, min(1.0, vol))
+        self._apply_volume()
 
     @Slot(bool)
     def setMuted(self, muted):
@@ -66,7 +68,10 @@ class StemPlayer(QObject):
     @Slot(float)
     def setGain(self, gain):
         self._gain = max(0.0, min(4.0, gain))
-        self._audio_output.setVolume(self._gain)
+        self._apply_volume()
+
+    def _apply_volume(self):
+        self._audio_output.setVolume(max(0.0, min(1.0, self._master_volume * self._gain)))
 
     def setPan(self, pan):
         self._pan = max(-1.0, min(1.0, pan))

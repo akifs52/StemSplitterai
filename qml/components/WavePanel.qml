@@ -18,6 +18,15 @@ Rectangle {
     border.width: 1
     clip: true
 
+    function drawEmptyWaveform(ctx, w, h) {
+        ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.12)
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.moveTo(0, h * 0.5)
+        ctx.lineTo(w, h * 0.5)
+        ctx.stroke()
+    }
+
     Column {
         anchors.fill: parent
         anchors.margins: 20
@@ -27,7 +36,7 @@ Rectangle {
             width: parent.width
             spacing: 8
 
-            Text { text: "\uE40B"; font.family: "Material Symbols Outlined"; font.pixelSize: 18; Layout.alignment: Qt.AlignVCenter }
+            Text { text: "\uE40B"; font.family: "Material Symbols Outlined"; color: "#e2e2e2"; font.pixelSize: 18; Layout.alignment: Qt.AlignVCenter }
             Text {
                 text: root.panelLabel
                 color: "#e2e2e2"
@@ -61,20 +70,16 @@ Rectangle {
                     var h = height
                     ctx.clearRect(0, 0, w, h)
 
-                    if (!root.hasAudio || root.waveformData.length === 0) {
-                        var placeholderBars = 80
-                        var barW = w / placeholderBars - 1
-                        ctx.fillStyle = Qt.rgba(0, 0.89, 0.53, 0.08)
-                        for (var i = 0; i < placeholderBars; i++) {
-                            var barH = (Math.random() * 0.5 + 0.1) * h * 0.5
-                            ctx.fillRect(i * (barW + 1), h * 0.5 - barH / 2, barW, barH)
-                        }
+                    var data = root.waveformData
+                    var len = data && data.length !== undefined ? data.length : 0
+
+                    if (!root.hasAudio || len <= 0) {
+                        root.drawEmptyWaveform(ctx, w, h)
                         return
                     }
 
-                    var data = root.waveformData
-                    var len = data.length
-                    var barW = w / len - 1
+                    var gap = len > w / 2 ? 0 : 1
+                    var barW = Math.max(1, w / len - gap)
                     var centerY = h / 2
                     var playedColor = root.waveColor
                     var unplayedColor = Qt.rgba(0.29, 0.29, 0.29, 0.4)
@@ -84,7 +89,7 @@ Rectangle {
                         if (isNaN(amp)) amp = 0
                         var barH = amp * (h * 0.45)
                         ctx.fillStyle = (j / len <= root.playPosition) ? playedColor : unplayedColor
-                        ctx.fillRect(j * (barW + 1), centerY - barH / 2, barW, Math.max(barH, 1))
+                        ctx.fillRect(j * (barW + gap), centerY - barH / 2, barW, Math.max(barH, 1))
                     }
 
                     if (root.playPosition > 0) {
@@ -97,6 +102,10 @@ Rectangle {
                         ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, h); ctx.stroke()
                     }
                 }
+
+                onWidthChanged: requestPaint()
+                onHeightChanged: requestPaint()
+                Component.onCompleted: requestPaint()
 
                 Connections {
                     target: root

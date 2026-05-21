@@ -7,7 +7,7 @@ Rectangle {
     property string stemName: "Vocals"
     property string stemLabel: "STEM 01"
     property string accentColor: "#FF69B4"
-    property real gainValue: 0.85
+    property real gainValue: 1.0
     property bool isMuted: false
     property bool isSolo: false
     property string stemId: ""
@@ -94,7 +94,7 @@ Rectangle {
                                 if (isNaN(amp)) amp = 0
                                 amp = Math.max(amp, 0.03)
                             } else {
-                                amp = 0.15 + Math.random() * 0.7
+                                amp = 0.03
                             }
 
                             var barH = amp * h * 0.9
@@ -102,7 +102,7 @@ Rectangle {
                             var y = h - barH
 
                             ctx.fillStyle = root.accentColor
-                            ctx.globalAlpha = hasData ? (0.5 + amp * 0.5) : (0.5 + Math.random() * 0.5)
+                            ctx.globalAlpha = hasData ? (0.5 + amp * 0.5) : 0.15
                             ctx.fillRect(x, y, barW, barH)
                         }
                         ctx.globalAlpha = 1.0
@@ -144,13 +144,33 @@ Rectangle {
                     NeoSlider {
                         id: gainSlider
                         width: parent.width
+                        height: 24
                         from: 0
-                        to: 200
+                        to: 100
+                        stepSize: 1
+                        live: true
                         value: 100
                         accent: root.accentColor
 
+                        onValueChanged: {
+                            if (!pressed) return
+                            root.gainValue = value / 100.0
+                            root.gainAdjusted(root.gainValue)
+                        }
+
                         onMoved: {
-                            gainAdjusted(value / 100.0)
+                            root.gainValue = value / 100.0
+                            root.gainAdjusted(root.gainValue)
+                        }
+
+                        Component.onCompleted: value = root.gainValue * 100
+                    }
+
+                    Connections {
+                        target: root
+                        function onGainValueChanged() {
+                            if (!gainSlider.pressed)
+                                gainSlider.value = root.gainValue * 100
                         }
                     }
                 }

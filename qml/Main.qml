@@ -18,7 +18,7 @@ ApplicationWindow {
     x: (Screen.width - width) / 2
     y: (Screen.height - height) / 2
 
-    title: "SonicSplit AI"
+    title: "StemSplit AI"
 
     flags: Qt.FramelessWindowHint | Qt.Window
     color: "transparent"
@@ -33,12 +33,63 @@ ApplicationWindow {
     property string soloStem: ""
     property var manualMutes: ({})
     property var stemWaveforms: ({})
+    property var stemColors: ({})
 
     function formatTime(sec) {
         sec = Math.floor(sec)
         var m = Math.floor(sec / 60)
         var s = sec % 60
         return m + ":" + (s < 10 ? "0" + s : s)
+    }
+
+    function activeStemLabel() {
+        if (currentStems.length === 0) return ""
+        if (soloStem !== "") return soloStem
+
+        var activeCount = 0
+        var activeName = ""
+        for (var i = 0; i < currentStems.length; i++) {
+            var name = currentStems[i].name
+            if (manualMutes[name] !== true) {
+                activeCount++
+                activeName = name
+            }
+        }
+
+        if (activeCount === 0) return "muted"
+        if (activeCount === 1) return activeName
+        return "mix"
+    }
+
+    function accelerationColor() {
+        return backend && backend.gpuAvailable ? "#00e388" : "#FFC857"
+    }
+
+    function assignStemColors(stems) {
+        var palette = [
+            "#FF4D6D", "#4FC3F7", "#FFD166", "#8BE9C1",
+            "#C77DFF", "#FF9F1C", "#2EC4B6", "#E76F51",
+            "#A3E635", "#F472B6", "#60A5FA", "#FACC15"
+        ]
+        var pool = palette.slice(0)
+        for (var i = pool.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1))
+            var tmp = pool[i]
+            pool[i] = pool[j]
+            pool[j] = tmp
+        }
+
+        var colors = ({})
+        for (var s = 0; s < stems.length; s++)
+            colors[stems[s].name] = pool[s % pool.length]
+        stemColors = colors
+    }
+
+    function popupStatusText(msg) {
+        if (!msg) return "Processing..."
+        var match = msg.match(/Initializing Demucs \(([^)]+)\)/)
+        if (match && match.length > 1) return match[1]
+        return msg
     }
 
     Rectangle {
@@ -146,8 +197,8 @@ ApplicationWindow {
                                             loadingPopup.statusText = "Preparing audio file..."
                                             loadingOverlay.visible = true
                                             loadingDelayTimer.callback = function() {
-                                                backend.startSplit(path)
                                                 activeSection = 1
+                                                backend.startSplit(path)
                                             }
                                             loadingDelayTimer.start()
                                         }
@@ -173,7 +224,7 @@ ApplicationWindow {
                                         spacing: 12
 
                                         Row { spacing: 8
-                                            Text { text: "\uE889"; font.family: "Material Symbols Outlined"; font.pixelSize: 18; anchors.verticalCenter: parent.verticalCenter }
+                                            Text { text: "\uE889"; font.family: "Material Symbols Outlined"; color: "#e2e2e2"; font.pixelSize: 18; anchors.verticalCenter: parent.verticalCenter }
                                             Text { text: "Recent Separations"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 18; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
                                         }
 
@@ -205,6 +256,8 @@ ApplicationWindow {
                                                             loadingOverlay.visible = true
                                                             loadingDelayTimer.callback = function() {
                                                                 stemWaveforms = ({})
+                                                                wavePanel.waveformData = []
+                                                                wavePanel.hasAudio = false
                                                                 backend.loadHistoryItem(model.file_path, model.stems)
                                                             }
                                                             loadingDelayTimer.start()
@@ -310,6 +363,9 @@ ApplicationWindow {
                                 width: parent.width
                                 height: 200
                                 panelLabel: "Original Waveform"
+                                playPosition: audioEngine && audioEngine.duration > 0
+                                              ? Math.max(0, Math.min(1, audioEngine.position / audioEngine.duration))
+                                              : 0
                             }
 
                             Row {
@@ -379,17 +435,6 @@ ApplicationWindow {
 
                                         Text { text: backend ? backend.gpuInfo : "Checking..."; color: "#00e388"; font.family: "Inter"; font.pixelSize: 12; font.weight: Font.Medium; elide: Text.ElideRight }
 
-                                        Row { spacing: 12
-                                            Button { flat: true
-                                                background: Rectangle { radius: 8; color: parent.hovered ? Qt.rgba(1,1,1,0.06) : Qt.rgba(1,1,1,0.02); border.color: Qt.rgba(1,1,1,0.08); border.width: 1 }
-                                                contentItem: Text { text: "Pause"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 13; font.weight: Font.Medium; leftPadding: 16; rightPadding: 16 }
-                                            }
-                                            Button { flat: true
-                                                background: Rectangle { radius: 8; color: parent.hovered ? Qt.rgba(0.93,0,0.03,0.1) : Qt.rgba(0.93,0,0.03,0.04); border.color: Qt.rgba(0.93,0,0.03,0.15); border.width: 1 }
-                                                contentItem: Text { text: "Cancel"; color: "#ffb4ab"; font.family: "Inter"; font.pixelSize: 13; font.weight: Font.Medium; leftPadding: 16; rightPadding: 16 }
-                                                onClicked: { if (backend) backend.cancelSplit(); activeSection = 0 }
-                                            }
-                                        }
                                     }
                                 }
                             }
@@ -420,13 +465,6 @@ ApplicationWindow {
                                     Text { text: "Stem Mixer"; color: "#e2e2e2"; font.family: "Montserrat"; font.pixelSize: 30; font.weight: Font.Bold }
                                     Text { text: "Fine-tune individual components of your track with AI precision."; color: Qt.rgba(0.73,0.8,0.73,0.55); font.family: "Inter"; font.pixelSize: 14 }
                                 }
-                                Rectangle { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; height: 44; radius: 12; color: "#00e388"
-                                    Row { anchors.centerIn: parent; spacing: 6; leftPadding: 20; rightPadding: 20
-                                        Text { text: "\uE2C4"; font.family: "Material Symbols Outlined"; color: "#00391e"; font.pixelSize: 16; anchors.verticalCenter: parent.verticalCenter }
-                                        Text { text: "Export All"; color: "#00391e"; font.family: "Inter"; font.pixelSize: 13; font.weight: Font.Bold; anchors.verticalCenter: parent.verticalCenter }
-                                    }
-                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true; onClicked: { if (audioEngine) audioEngine.exportAllStems() } }
-                                }
                             }
 
                             Repeater {
@@ -437,12 +475,7 @@ ApplicationWindow {
                                     stemId: modelData.name
                                     stemName: modelData.name
                                     stemLabel: "STEM " + ("0" + (index + 1)).slice(-2)
-                                    accentColor: ({
-                                        "vocals":"#FF69B4",
-                                        "drums":"#4FC3F7",
-                                        "bass":"#FFD700",
-                                        "other":"#00e388"
-                                    })[modelData.name.toLowerCase()] || "#00e388"
+                                    accentColor: stemColors[modelData.name] || "#00e388"
                                     waveformData: stemWaveforms[modelData.name] || []
                                     isSolo: soloStem === modelData.name
                                     isMuted: manualMutes[modelData.name] === true || (soloStem !== "" && soloStem !== modelData.name)
@@ -489,7 +522,7 @@ ApplicationWindow {
 
                                         Row { anchors.fill: parent; anchors.margins: 16; spacing: 12
                                             Rectangle { width: 40; height: 40; radius: 8; color: Qt.rgba(0,0.89,0.53,0.08); anchors.verticalCenter: parent.verticalCenter
-                                                Text { anchors.centerIn: parent; text: modelData.icon; font.family: "Material Symbols Outlined"; font.pixelSize: 20 }
+                                                Text { anchors.centerIn: parent; text: modelData.icon; font.family: "Material Symbols Outlined"; color: "#00e388"; font.pixelSize: 20 }
                                             }
                                             Column { anchors.verticalCenter: parent.verticalCenter
                                                 Text { text: modelData.label; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 0.8 }
@@ -531,24 +564,27 @@ ApplicationWindow {
                                     Column { anchors.fill: parent; anchors.margins: 20; spacing: 16
                                         Item { width: parent.width; height: 24
                                             Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Acceleration Engine"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 18; font.weight: Font.DemiBold }
-                                            Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "\uE322"; font.family: "Material Symbols Outlined"; font.pixelSize: 20 }
+                                            Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "\uE322"; font.family: "Material Symbols Outlined"; color: "#e2e2e2"; font.pixelSize: 20 }
                                         }
-                                        Rectangle { width: parent.width; height: 52; radius: 10; color: Qt.rgba(0,0.89,0.53,0.04); border.color: Qt.rgba(0,0.89,0.53,0.25); border.width: 1
+                                        Rectangle { width: parent.width; height: 52; radius: 10; color: backend && backend.gpuAvailable ? Qt.rgba(0,0.89,0.53,0.04) : "transparent"; border.color: backend && backend.gpuAvailable ? Qt.rgba(0,0.89,0.53,0.25) : Qt.rgba(1,1,1,0.06); border.width: 1
                                             Item { anchors.fill: parent; anchors.margins: 16
                                                 Column { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
-                                                    Text { text: "NVIDIA CUDA (GPU)"; color: "#00e388"; font.family: "Inter"; font.pixelSize: 15; font.weight: Font.DemiBold }
+                                                    Text { text: "NVIDIA CUDA (GPU)"; color: backend && backend.gpuAvailable ? "#00e388" : Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 15; font.weight: Font.DemiBold }
                                                     Text { text: "Recommended for batch processing"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11 }
                                                 }
-                                                Rectangle { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; width: 18; height: 18; radius: 9; color: "#00e388"
+                                                Rectangle { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; width: 18; height: 18; radius: 9; color: "#00e388"; visible: backend && backend.gpuAvailable
                                                     Rectangle { anchors.centerIn: parent; width: 6; height: 6; radius: 3; color: "#121414" }
                                                 }
                                             }
                                         }
-                                        Rectangle { width: parent.width; height: 52; radius: 10; color: "transparent"; border.color: Qt.rgba(1,1,1,0.06); border.width: 1
+                                        Rectangle { width: parent.width; height: 52; radius: 10; color: backend && backend.gpuAvailable ? "transparent" : Qt.rgba(1,0.78,0.34,0.06); border.color: backend && backend.gpuAvailable ? Qt.rgba(1,1,1,0.06) : Qt.rgba(1,0.78,0.34,0.35); border.width: 1
                                             Item { anchors.fill: parent; anchors.margins: 16
                                                 Column { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
-                                                    Text { text: "CPU Cluster"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 15; font.weight: Font.DemiBold }
+                                                    Text { text: "CPU Cluster"; color: backend && backend.gpuAvailable ? Qt.rgba(0.73,0.8,0.73,0.45) : "#FFC857"; font.family: "Inter"; font.pixelSize: 15; font.weight: Font.DemiBold }
                                                     Text { text: "Standard high-precision threads"; color: Qt.rgba(0.73,0.8,0.73,0.35); font.family: "Inter"; font.pixelSize: 11 }
+                                                }
+                                                Rectangle { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; width: 18; height: 18; radius: 9; color: "#FFC857"; visible: !(backend && backend.gpuAvailable)
+                                                    Rectangle { anchors.centerIn: parent; width: 6; height: 6; radius: 3; color: "#121414" }
                                                 }
                                             }
                                         }
@@ -559,7 +595,7 @@ ApplicationWindow {
                                     Column { anchors.fill: parent; anchors.margins: 20; spacing: 18
                                         Item { width: parent.width; height: 24
                                             Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Demucs Configuration"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 18; font.weight: Font.DemiBold }
-                                            Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "\uE322"; font.family: "Material Symbols Outlined"; font.pixelSize: 20 }
+                                            Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "\uE322"; font.family: "Material Symbols Outlined"; color: "#e2e2e2"; font.pixelSize: 20 }
                                         }
                                         Column { width: parent.width; spacing: 6
                                             Text { text: "Model"; color: Qt.rgba(0.73,0.8,0.73,0.55); font.family: "Inter"; font.pixelSize: 12 }
@@ -781,7 +817,7 @@ ApplicationWindow {
                         width: parent.width * 0.3
                         height: parent.height
                         Row { anchors.verticalCenter: parent.verticalCenter; spacing: 10
-                            Text { text: currentStems.length > 0 ? currentStems[0].name : ""; color: "#00e388"; font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 1; font.weight: Font.Medium; visible: currentStems.length > 0 }
+                            Text { text: activeStemLabel(); color: "#00e388"; font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 1; font.weight: Font.Medium; visible: currentStems.length > 0 }
                         }
                     }
 
@@ -911,12 +947,22 @@ ApplicationWindow {
     Connections {
         target: backend
         function onSplitStarted(fp) {
-            loadingOverlay.visible = false
-            currentStems = []; stemWaveforms = ({}); activeSection = 1; if (audioEngine) audioEngine.clearAll()
+            loadingPopup.statusText = "Preparing separation..."
+            loadingOverlay.visible = true
+            currentStems = []; stemColors = ({}); stemWaveforms = ({}); activeSection = 1; if (audioEngine) audioEngine.clearAll()
+            wavePanel.waveformData = []
+            wavePanel.hasAudio = false
         }
         function onProgressUpdated(v) { app.procProgress = Math.min(v, 99) }
-        function onStatusUpdated(msg) { statusLabel.text = msg }
-        function onWaveformReady(name, data) { wavePanel.waveformData = data; wavePanel.hasAudio = true }
+        function onStatusUpdated(msg) {
+            statusLabel.text = msg
+            if (loadingOverlay.visible) loadingPopup.statusText = popupStatusText(msg)
+        }
+        function onWaveformReady(name, data) {
+            if (name !== "original") return
+            wavePanel.waveformData = data || []
+            wavePanel.hasAudio = data && data.length > 0
+        }
         function onStemWaveformReady(name, data) {
             var wf = ({})
             for (var k in stemWaveforms) wf[k] = stemWaveforms[k]
@@ -927,6 +973,7 @@ ApplicationWindow {
             loadingOverlay.visible = false
             var stems = JSON.parse(stemsJson)
             if (status === "ok") {
+                assignStemColors(stems)
                 currentStems = stems; activeSection = 2
                 if (audioEngine) audioEngine.loadStems(stems)
             } else {
@@ -975,7 +1022,7 @@ ApplicationWindow {
             id: loadingPopup
             anchors.centerIn: parent
             width: 340
-            height: 110
+            height: activeSection === 1 ? 150 : 110
             radius: 20
             color: "#1a1c1e"
             border.color: Qt.rgba(0, 0.89, 0.53, 0.25)
@@ -1043,6 +1090,8 @@ ApplicationWindow {
 
                     Text {
                         text: loadingPopup.statusText
+                        width: 210
+                        elide: Text.ElideRight
                         color: "#e2e2e2"
                         font.family: "Inter"
                         font.pixelSize: 16
@@ -1054,6 +1103,36 @@ ApplicationWindow {
                         color: Qt.rgba(0.73, 0.8, 0.73, 0.5)
                         font.family: "Inter"
                         font.pixelSize: 12
+                    }
+
+                    Rectangle {
+                        width: 86
+                        height: 30
+                        radius: 8
+                        visible: activeSection === 1
+                        color: cancelPopupMouse.containsMouse ? Qt.rgba(1, 0.3, 0.43, 0.16) : Qt.rgba(1, 0.3, 0.43, 0.08)
+                        border.color: Qt.rgba(1, 0.3, 0.43, 0.35)
+                        border.width: 1
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "Cancel"
+                            color: "#ffb4ab"
+                            font.family: "Inter"
+                            font.pixelSize: 12
+                            font.weight: Font.DemiBold
+                        }
+
+                        MouseArea {
+                            id: cancelPopupMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                loadingPopup.statusText = "Cancelling..."
+                                if (backend) backend.cancelSplit()
+                            }
+                        }
                     }
                 }
             }
