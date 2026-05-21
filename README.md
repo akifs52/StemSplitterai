@@ -1,4 +1,4 @@
-# SonicSplit AI
+# StemSplit AI
 
 AI-powered audio stem separation desktop app built with **PySide6** (Qt6) + **Demucs**.
 
