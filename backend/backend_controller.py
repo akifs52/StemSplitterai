@@ -58,6 +58,7 @@ class BackendController(QObject):
     stemMuteChanged = Signal(str, bool)
     stemSoloChanged = Signal(str, bool)
     waveformReady = Signal(str, object)
+    stemWaveformReady = Signal(str, list)
     gpuInfoChanged = Signal()
     positionChanged = Signal(float)
     durationChanged = Signal(float)
@@ -253,6 +254,14 @@ class BackendController(QObject):
         self.splitStarted.emit(file_path)
         self._on_status_updated("Preparing...")
 
+        # Compute waveform for the original file immediately
+        try:
+            data = compute_waveform(file_path)
+            if data:
+                self.waveformReady.emit("original", data)
+        except Exception as e:
+            self._log(f"Original waveform error: {e}")
+
         cache_path = self._cache_manager.has_cached(file_path)
         if cache_path:
             stems = self._stems_from_dir(cache_path, file_path)
@@ -336,6 +345,15 @@ class BackendController(QObject):
         self._compute_waveform_from_stems(stems)
 
     def _compute_waveform_from_stems(self, stems):
+        for stem in stems:
+            try:
+                data = compute_waveform(stem["path"], max_points=80)
+                if data:
+                    self.stemWaveformReady.emit(stem["name"], data)
+            except Exception as e:
+                self._log(f"Stem waveform error ({stem['name']}): {e}")
+
+        # Also emit a combined waveform for the main wave panel
         for stem in stems:
             if stem["name"].lower() == "vocals":
                 data = compute_waveform(stem["path"])
@@ -432,14 +450,19 @@ class BackendController(QObject):
         if not src or not os.path.isfile(src):
             self._log(f"Export failed: no source file for '{name}'")
             return
-        dir_path = QFileDialog.getExistingDirectory(None, f"Export {name}")
-        if not dir_path:
-            return
         ext = os.path.splitext(src)[1] or ".wav"
-        dst = os.path.join(dir_path, f"{name}{ext}")
+        filter_str = f"Audio Files (*{ext});;All Files (*)"
+        dst_path, _ = QFileDialog.getSaveFileName(
+            None,
+            f"Save {name.capitalize()} Stem",
+            f"{name}{ext}",
+            filter_str
+        )
+        if not dst_path:
+            return
         try:
-            shutil.copy2(src, dst)
-            self._log(f"Exported '{name}' -> {dst}")
+            shutil.copy2(src, dst_path)
+            self._log(f"Exported '{name}' -> {dst_path}")
             self._on_status_updated(f"Exported '{name}'")
         except Exception as e:
             self._log(f"Export error: {e}")
@@ -548,3 +571,41 @@ class BackendController(QObject):
     @Slot(list)
     def loadStems(self, stems):
         self._load_stems_into_engine(stems)
+
+    @Slot(str, str)
+    def loadHistoryItem(self, file_path, stems_json):
+        self._log(f"loadHistoryItem called: {file_path}")
+        
+        # Verify if the stem files exist
+        try:
+            stems = json.loads(stems_json)
+        except Exception as e:
+            self._log(f"Error parsing stems JSON: {e}")
+            self._on_status_updated("Error loading history: invalid data")
+            self.splitFinished.emit("error", "[]")
+            return
+            
+        missing_files = []
+        for stem in stems:
+            path = stem.get("path")
+            if not path or not os.path.exists(path):
+                missing_files.append(stem.get("name", "unknown"))
+                
+        if missing_files:
+            self._log(f"Cannot load history: missing files {missing_files}")
+            self._on_status_updated(f"Cannot load history: files for {', '.join(missing_files)} are missing")
+            self.splitFinished.emit("error", "[]")
+            return
+            
+        self.clearAll()
+        self._current_file = file_path
+
+        # Compute waveform for the original file immediately
+        try:
+            data = compute_waveform(file_path)
+            if data:
+                self.waveformReady.emit("original", data)
+        except Exception as e:
+            self._log(f"Original waveform error: {e}")
+
+        self.splitFinished.emit("ok", stems_json)

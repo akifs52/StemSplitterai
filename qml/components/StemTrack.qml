@@ -11,6 +11,7 @@ Rectangle {
     property bool isMuted: false
     property bool isSolo: false
     property string stemId: ""
+    property var waveformData: []
 
     signal muteClicked()
     signal soloClicked()
@@ -69,23 +70,50 @@ Rectangle {
                 color: Qt.rgba(1, 1, 1, 0.02)
                 clip: true
 
-                Row {
+                Canvas {
+                    id: stemWaveCanvas
                     anchors.fill: parent
                     anchors.margins: 4
-                    spacing: 2
 
-                    Repeater {
-                        model: 50
-                        delegate: Rectangle {
-                            readonly property real h: 0.15 + Math.random() * 0.7
-                            width: (parent.width - 49 * 2) / 50
-                            height: parent.height * h
-                            anchors.bottom: parent.bottom
-                            color: root.accentColor
-                            opacity: 0.5 + Math.random() * 0.5
-                            radius: 1
+                    onPaint: {
+                        var ctx = getContext("2d")
+                        var w = width
+                        var h = height
+                        ctx.clearRect(0, 0, w, h)
+
+                        var data = root.waveformData
+                        var hasData = data && data.length > 0
+
+                        var barCount = hasData ? data.length : 50
+                        var barW = (w - (barCount - 1) * 2) / barCount
+
+                        for (var i = 0; i < barCount; i++) {
+                            var amp
+                            if (hasData) {
+                                amp = Math.min(Math.abs(data[i] || 0), 1.0)
+                                if (isNaN(amp)) amp = 0
+                                amp = Math.max(amp, 0.03)
+                            } else {
+                                amp = 0.15 + Math.random() * 0.7
+                            }
+
+                            var barH = amp * h * 0.9
+                            var x = i * (barW + 2)
+                            var y = h - barH
+
+                            ctx.fillStyle = root.accentColor
+                            ctx.globalAlpha = hasData ? (0.5 + amp * 0.5) : (0.5 + Math.random() * 0.5)
+                            ctx.fillRect(x, y, barW, barH)
                         }
+                        ctx.globalAlpha = 1.0
                     }
+
+                    Connections {
+                        target: root
+                        function onWaveformDataChanged() { stemWaveCanvas.requestPaint() }
+                    }
+
+                    Component.onCompleted: stemWaveCanvas.requestPaint()
                 }
             }
         }
@@ -117,11 +145,11 @@ Rectangle {
                         id: gainSlider
                         width: parent.width
                         from: 0
-                        to: 100
-                        value: 80
+                        to: 200
+                        value: 100
                         accent: root.accentColor
 
-                        onValueChanged: {
+                        onMoved: {
                             gainAdjusted(value / 100.0)
                         }
                     }

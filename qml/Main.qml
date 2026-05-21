@@ -32,6 +32,7 @@ ApplicationWindow {
     property int shiftsValue: 1
     property string soloStem: ""
     property var manualMutes: ({})
+    property var stemWaveforms: ({})
 
     function formatTime(sec) {
         sec = Math.floor(sec)
@@ -141,7 +142,15 @@ ApplicationWindow {
                                 DropZone {
                                     anchors.fill: parent
                                     onFileDropped: function(path) {
-                                        if (backend) { backend.startSplit(path); activeSection = 1 }
+                                        if (backend) {
+                                            loadingPopup.statusText = "Preparing audio file..."
+                                            loadingOverlay.visible = true
+                                            loadingDelayTimer.callback = function() {
+                                                backend.startSplit(path)
+                                                activeSection = 1
+                                            }
+                                            loadingDelayTimer.start()
+                                        }
                                     }
                                 }
                             }
@@ -175,19 +184,46 @@ ApplicationWindow {
                                             interactive: false
                                             model: backend ? backend.historyModel : null
                                             delegate: Item {
+                                                id: histDelegate
                                                 width: parent.width; height: 44
+                                                
+                                                Rectangle {
+                                                    anchors.fill: parent
+                                                    radius: 8
+                                                    color: histMouseArea.containsMouse ? Qt.rgba(1, 1, 1, 0.05) : "transparent"
+                                                    Behavior on color { ColorAnimation { duration: 150 } }
+                                                }
+
+                                                MouseArea {
+                                                    id: histMouseArea
+                                                    anchors.fill: parent
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    hoverEnabled: true
+                                                    onClicked: {
+                                                        if ((model.status === "ok" || model.status === "cached") && backend) {
+                                                            loadingPopup.statusText = "Loading past separation..."
+                                                            loadingOverlay.visible = true
+                                                            loadingDelayTimer.callback = function() {
+                                                                stemWaveforms = ({})
+                                                                backend.loadHistoryItem(model.file_path, model.stems)
+                                                            }
+                                                            loadingDelayTimer.start()
+                                                        }
+                                                    }
+                                                }
+
                                                 Rectangle { id: histIcon; x: 4; y: 4; width: 36; height: 36; radius: 8; color: Qt.rgba(0,0.89,0.53,0.08)
                                                     Text { anchors.centerIn: parent; text: "\uE40B"; font.family: "Material Symbols Outlined"; color: "#00e388"; font.pixelSize: 16 }
                                                 }
                                                 Row { id: histActions; anchors.verticalCenter: parent.verticalCenter; anchors.right: parent.right; anchors.rightMargin: 4; spacing: 8
-                                                    Text { text: "\uE037"; font.family: "Material Symbols Outlined"; color: Qt.rgba(0.73,0.8,0.73,0.4); font.pixelSize: 14 }
-                                                    Text { text: "\uE2C4"; font.family: "Material Symbols Outlined"; color: Qt.rgba(0.73,0.8,0.73,0.4); font.pixelSize: 14 }
+                                                    Text { text: "\uE037"; font.family: "Material Symbols Outlined"; color: histMouseArea.containsMouse ? "#00e388" : Qt.rgba(0.73,0.8,0.73,0.4); font.pixelSize: 14; Behavior on color { ColorAnimation { duration: 150 } } }
+                                                    Text { text: "\uE2C4"; font.family: "Material Symbols Outlined"; color: histMouseArea.containsMouse ? "#00e388" : Qt.rgba(0.73,0.8,0.73,0.4); font.pixelSize: 14; Behavior on color { ColorAnimation { duration: 150 } } }
                                                 }
                                                 Column { anchors.verticalCenter: parent.verticalCenter; anchors.left: histIcon.right; anchors.leftMargin: 12; anchors.right: histActions.left; anchors.rightMargin: 8
                                                     Text { text: model.file_name || ""; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 14; font.weight: Font.Medium; elide: Text.ElideMiddle; width: parent.width }
                                                     Row { spacing: 4
-                                                        Text { text: model.status === "ok" ? (model.stems || "6 Stems") : ""; color: Qt.rgba(0.73,0.8,0.73,0.4); font.family: "Inter"; font.pixelSize: 11 }
-                                                        Text { text: (model.status === "ok" && model.created_at) ? "\u2022" : ""; color: Qt.rgba(0.73,0.8,0.73,0.3); font.family: "Inter"; font.pixelSize: 11 }
+                                                        Text { text: (model.status === "ok" || model.status === "cached") ? (model.stems && model.stems.indexOf("[") === 0 ? (JSON.parse(model.stems).length + " Stems") : "Stems") : ""; color: Qt.rgba(0.73,0.8,0.73,0.4); font.family: "Inter"; font.pixelSize: 11 }
+                                                        Text { text: ((model.status === "ok" || model.status === "cached") && model.created_at) ? "\u2022" : ""; color: Qt.rgba(0.73,0.8,0.73,0.3); font.family: "Inter"; font.pixelSize: 11 }
                                                         Text { text: model.created_at || ""; color: Qt.rgba(0.73,0.8,0.73,0.4); font.family: "Inter"; font.pixelSize: 11 }
                                                     }
                                                 }
@@ -407,6 +443,7 @@ ApplicationWindow {
                                         "bass":"#FFD700",
                                         "other":"#00e388"
                                     })[modelData.name.toLowerCase()] || "#00e388"
+                                    waveformData: stemWaveforms[modelData.name] || []
                                     isSolo: soloStem === modelData.name
                                     isMuted: manualMutes[modelData.name] === true || (soloStem !== "" && soloStem !== modelData.name)
                                     onMuteClicked: {
@@ -618,15 +655,121 @@ ApplicationWindow {
 
             // ===== BOTTOM PLAYER BAR =====
             Rectangle {
+                id: bottomBar
                 width: parent.width
                 height: 72
                 color: Qt.rgba(0.12, 0.12, 0.12, 0.85)
 
-                Rectangle {
+                // --- Full-width progress bar at the very top (YouTube Music style) ---
+                Item {
+                    id: progressBarArea
                     anchors.top: parent.top
-                    width: parent.width
-                    height: 1
-                    color: Qt.rgba(1, 1, 1, 0.08)
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    height: 16
+                    z: 10
+
+                    property bool hovered: progressBarMouseArea.containsMouse || progressBarMouseArea.pressed
+
+                    // Track background
+                    Rectangle {
+                        id: progressTrack
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        height: progressBarArea.hovered ? 5 : 3
+                        color: Qt.rgba(1, 1, 1, 0.12)
+
+                        Behavior on height {
+                            NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                        }
+
+                        // Progress fill
+                        Rectangle {
+                            id: progressFill
+                            width: audioEngine && audioEngine.duration > 0
+                                   ? parent.width * (audioEngine.position / audioEngine.duration)
+                                   : 0
+                            height: parent.height
+                            color: "#00e388"
+
+                            Behavior on width {
+                                NumberAnimation {
+                                    duration: 120
+                                    easing.type: Easing.OutCubic
+                                }
+                            }
+                        }
+
+                        // Thumb circle
+                        Rectangle {
+                            id: progressThumb
+                            width: 12
+                            height: 12
+                            radius: 6
+                            color: "#00e388"
+                            visible: progressBarArea.hovered
+                            y: (parent.height - height) / 2
+                            x: progressFill.width - width / 2
+                        }
+                    }
+
+                    MouseArea {
+                        id: progressBarMouseArea
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        height: parent.height
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: function(mouse) {
+                            if (audioEngine) {
+                                var ratio = mouse.x / width
+                                audioEngine.seek(ratio * audioEngine.duration)
+                            }
+                        }
+                        onPositionChanged: function(mouse) {
+                            if (pressed && audioEngine) {
+                                var ratio = Math.max(0, Math.min(1, mouse.x / width))
+                                audioEngine.seek(ratio * audioEngine.duration)
+                            }
+                        }
+                    }
+
+                    // Time labels positioned below the progress track
+                    Text {
+                        anchors.left: parent.left
+                        anchors.leftMargin: 8
+                        anchors.top: progressTrack.bottom
+                        anchors.topMargin: 1
+                        text: audioEngine ? Qt.formatTime(new Date(audioEngine.position * 1000), "mm:ss") : "00:00"
+                        color: progressBarArea.hovered ? "#00e388" : Qt.rgba(0.73, 0.8, 0.73, 0.45)
+                        font.family: "Inter"
+                        font.pixelSize: 10
+                        font.weight: Font.Medium
+                        visible: progressBarArea.hovered
+
+                        Behavior on color {
+                            ColorAnimation { duration: 150 }
+                        }
+                    }
+
+                    Text {
+                        anchors.right: parent.right
+                        anchors.rightMargin: 8
+                        anchors.top: progressTrack.bottom
+                        anchors.topMargin: 1
+                        text: audioEngine ? Qt.formatTime(new Date(audioEngine.duration * 1000), "mm:ss") : "00:00"
+                        color: progressBarArea.hovered ? Qt.rgba(0.73, 0.8, 0.73, 0.55) : Qt.rgba(0.73, 0.8, 0.73, 0.35)
+                        font.family: "Inter"
+                        font.pixelSize: 10
+                        font.weight: Font.Medium
+                        visible: progressBarArea.hovered
+
+                        Behavior on color {
+                            ColorAnimation { duration: 150 }
+                        }
+                    }
                 }
 
                 Row {
@@ -639,81 +782,98 @@ ApplicationWindow {
                         height: parent.height
                         Row { anchors.verticalCenter: parent.verticalCenter; spacing: 10
                             Text { text: currentStems.length > 0 ? currentStems[0].name : ""; color: "#00e388"; font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 1; font.weight: Font.Medium; visible: currentStems.length > 0 }
-                            Text { text: formatTime(audioEngine ? audioEngine.position : 0); color: Qt.rgba(0.73,0.8,0.73,0.55); font.family: "Inter"; font.pixelSize: 11 }
-                            NeoSlider {
-                                id: progressSlider
-                                width: 200
-                                anchors.verticalCenter: parent.verticalCenter
-                                from: 0
-                                to: audioEngine ? audioEngine.duration : 100
-                                value: audioEngine ? audioEngine.position : 0
-                                accent: "#00e388"
-                                onPressedChanged: {
-                                    if (!pressed && audioEngine) audioEngine.seek(value)
-                                }
-                            }
-                            Text { text: formatTime(audioEngine ? audioEngine.duration : 0); color: Qt.rgba(0.73,0.8,0.73,0.55); font.family: "Inter"; font.pixelSize: 11 }
                         }
                     }
 
                     Item {
                         width: parent.width * 0.4
                         height: parent.height
-                        Row { anchors.centerIn: parent; spacing: 14
-                            MediaButton {
-                                icon: "\uE043"
-                            }
-                            MediaButton {
-                                icon: "\uE045"
-                                onClicked: {
-                                    if (audioEngine) audioEngine.previous()
-                                }
-                            }
-                                Rectangle {
-                                id: playBtn
-                                width: 58
-                                height: 58
-                                radius: 29
-                                property bool playing: false
-                                color: playing
-                                       ? "#FF4D6D"
-                                       : playMouse.containsMouse
-                                            ? "#14f19b"
-                                            : "#00e388"
-                                Behavior on color { ColorAnimation { duration: 120 } }
+
+                        Column {
+                            anchors.centerIn: parent
+                            spacing: 10
+
+                            Row {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                spacing: 20
+
                                 Text {
-                                    anchors.centerIn: parent
-                                    text: playBtn.playing ? "\uE034" : "\uE037"
+                                    text: "\uE043"
                                     font.family: "Material Symbols Outlined"
-                                    color: "#00391e"
-                                    font.pixelSize: 30
+                                    color: Qt.rgba(0.73,0.8,0.73,0.45)
+                                    font.pixelSize: 20
+                                    anchors.verticalCenter: parent.verticalCenter
                                 }
-                                Connections {
-                                    target: audioEngine
-                                    function onAllPlayingChanged() {
-                                        playBtn.playing = audioEngine.allPlaying
+
+                                Text {
+                                    text: "\uE045"
+                                    font.family: "Material Symbols Outlined"
+                                    color: Qt.rgba(0.73,0.8,0.73,0.45)
+                                    font.pixelSize: 26
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: { if (audioEngine) audioEngine.previous() }
                                     }
                                 }
-                                MouseArea {
-                                    id: playMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        if (audioEngine) audioEngine.togglePlayAll()
+
+                                Rectangle {
+                                    id: playBtn
+                                    width: 48
+                                    height: 48
+                                    radius: 24
+                                    property bool playing: false
+                                    color: playing ? "#FF4D6D" : playBtn.containsMouse ? "#14f19b" : "#00e388"
+                                    Behavior on color { ColorAnimation { duration: 120 } }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: playBtn.playing ? "\uE034" : "\uE037"
+                                        font.family: "Material Symbols Outlined"
+                                        color: "#00391e"
+                                        font.pixelSize: 28
+                                    }
+
+                                    Connections {
+                                        target: audioEngine
+                                        function onAllPlayingChanged() {
+                                            playBtn.playing = audioEngine.allPlaying
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        id: playBtnMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: { if (audioEngine) audioEngine.togglePlayAll() }
                                     }
                                 }
-                            }
-                            MediaButton {
-                                icon: "\uE044"
-                                onClicked: {
-                                    if (audioEngine) audioEngine.next()
+
+                                Text {
+                                    text: "\uE044"
+                                    font.family: "Material Symbols Outlined"
+                                    color: Qt.rgba(0.73,0.8,0.73,0.45)
+                                    font.pixelSize: 26
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: { if (audioEngine) audioEngine.next() }
+                                    }
+                                }
+
+                                Text {
+                                    text: "\uE040"
+                                    font.family: "Material Symbols Outlined"
+                                    color: Qt.rgba(0.73,0.8,0.73,0.45)
+                                    font.pixelSize: 20
+                                    anchors.verticalCenter: parent.verticalCenter
                                 }
                             }
-                            MediaButton {
-                                icon: "\uE040"
-                                active: true
-                            }
+
+
                         }
                     }
 
@@ -750,11 +910,21 @@ ApplicationWindow {
 
     Connections {
         target: backend
-        function onSplitStarted(fp) { currentStems = []; activeSection = 1; if (audioEngine) audioEngine.clearAll() }
+        function onSplitStarted(fp) {
+            loadingOverlay.visible = false
+            currentStems = []; stemWaveforms = ({}); activeSection = 1; if (audioEngine) audioEngine.clearAll()
+        }
         function onProgressUpdated(v) { app.procProgress = Math.min(v, 99) }
         function onStatusUpdated(msg) { statusLabel.text = msg }
         function onWaveformReady(name, data) { wavePanel.waveformData = data; wavePanel.hasAudio = true }
+        function onStemWaveformReady(name, data) {
+            var wf = ({})
+            for (var k in stemWaveforms) wf[k] = stemWaveforms[k]
+            wf[name] = data
+            stemWaveforms = wf
+        }
         function onSplitFinished(status, stemsJson) {
+            loadingOverlay.visible = false
             var stems = JSON.parse(stemsJson)
             if (status === "ok") {
                 currentStems = stems; activeSection = 2
@@ -772,6 +942,121 @@ ApplicationWindow {
         onTriggered: {
             if (backend)
                 backend.startDemucsCheck()
+        }
+    }
+
+    Timer {
+        id: loadingDelayTimer
+        interval: 50
+        repeat: false
+        property var callback: null
+        onTriggered: {
+            if (callback) callback()
+        }
+    }
+
+    // ===== LOADING OVERLAY (inside mainRect so it's fully opaque) =====
+    Rectangle {
+        id: loadingOverlay
+        parent: mainRect
+        anchors.fill: parent
+        z: 200
+        visible: false
+        color: Qt.rgba(0, 0, 0, 0.55)
+        radius: mainRect.radius
+
+        property alias statusText: loadingPopup.statusText
+
+        Behavior on opacity { NumberAnimation { duration: 200 } }
+
+        MouseArea { anchors.fill: parent; onClicked: {} }
+
+        Rectangle {
+            id: loadingPopup
+            anchors.centerIn: parent
+            width: 340
+            height: 110
+            radius: 20
+            color: "#1a1c1e"
+            border.color: Qt.rgba(0, 0.89, 0.53, 0.25)
+            border.width: 1
+
+            property string statusText: "Loading..."
+
+            scale: loadingOverlay.visible ? 1.0 : 0.9
+            Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutBack } }
+
+            Rectangle {
+                anchors.fill: parent
+                anchors.margins: 1
+                color: "transparent"
+                radius: 19
+                border.color: Qt.rgba(255, 255, 255, 0.05)
+                border.width: 1
+            }
+
+            Row {
+                anchors.centerIn: parent
+                spacing: 24
+
+                Item {
+                    width: 44
+                    height: 44
+                    anchors.verticalCenter: parent.verticalCenter
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: width / 2
+                        color: "transparent"
+                        border.color: Qt.rgba(0, 0.89, 0.53, 0.1)
+                        border.width: 4
+                    }
+
+                    Canvas {
+                        id: spinnerCanvas
+                        anchors.fill: parent
+                        onPaint: {
+                            var ctx = getContext("2d");
+                            ctx.clearRect(0, 0, width, height);
+                            ctx.strokeStyle = "#00e388";
+                            ctx.lineWidth = 4;
+                            ctx.lineCap = "round";
+                            ctx.beginPath();
+                            ctx.arc(width/2, height/2, width/2 - ctx.lineWidth/2, 0, 1.5 * Math.PI);
+                            ctx.stroke();
+                        }
+
+                        RotationAnimator {
+                            target: spinnerCanvas
+                            from: 0
+                            to: 360
+                            duration: 1000
+                            running: loadingOverlay.visible
+                            loops: Animation.Infinite
+                        }
+                    }
+                }
+
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 6
+
+                    Text {
+                        text: loadingPopup.statusText
+                        color: "#e2e2e2"
+                        font.family: "Inter"
+                        font.pixelSize: 16
+                        font.weight: Font.DemiBold
+                    }
+
+                    Text {
+                        text: "Please wait..."
+                        color: Qt.rgba(0.73, 0.8, 0.73, 0.5)
+                        font.family: "Inter"
+                        font.pixelSize: 12
+                    }
+                }
+            }
         }
     }
 

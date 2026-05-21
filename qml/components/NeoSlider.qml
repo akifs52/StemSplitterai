@@ -36,14 +36,7 @@ Slider {
             color: control.accent
             opacity: 0.25
             scale: 1.6
-            visible: control.pressed || handleMouse.containsMouse
-        }
-
-        MouseArea {
-            id: handleMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
+            visible: control.pressed || control.hovered
         }
     }
 }
