@@ -85,10 +85,39 @@ class StemPlayer(QObject):
 
 
 class AudioEngine(QObject):
+    positionChanged = Signal(float)
+    durationChanged = Signal(float)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._players = {}
         self._master_volume = 1.0
+        self._position = 0.0
+        self._duration = 0.0
+
+    def _get_position(self):
+        return self._position
+
+    def _get_duration(self):
+        return self._duration
+
+    position = Property(float, _get_position, notify=positionChanged)
+    duration = Property(float, _get_duration, notify=durationChanged)
+
+    def _sync_position(self, pos):
+        self._position = pos
+        self.positionChanged.emit(pos)
+
+    def _sync_duration(self, dur):
+        self._duration = dur
+        self.durationChanged.emit(dur)
+
+    @Slot(float)
+    def seek(self, position_sec):
+        self._position = position_sec
+        for p in self._players.values():
+            p.seek(position_sec)
+        self.positionChanged.emit(position_sec)
 
     def create_stem_player(self, stem_name, file_path):
         if stem_name in self._players:
@@ -98,6 +127,8 @@ class AudioEngine(QObject):
         player.load(file_path)
         player.setVolume(self._master_volume)
         self._players[stem_name] = player
+        player.positionChanged.connect(self._sync_position)
+        player.durationChanged.connect(self._sync_duration)
         return player
 
     def get_stem_player(self, stem_name):
@@ -124,7 +155,13 @@ class AudioEngine(QObject):
 
     @Slot()
     def playAll(self):
+        first = next(iter(self._players.values()), None)
+        if not first:
+            return
+        self._duration = first._player.duration() / 1000.0
+        self.durationChanged.emit(self._duration)
         for p in self._players.values():
+            p.seek(self._position)
             p.play()
 
     @Slot()

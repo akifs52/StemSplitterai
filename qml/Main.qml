@@ -33,6 +33,13 @@ ApplicationWindow {
     property string soloStem: ""
     property var manualMutes: ({})
 
+    function formatTime(sec) {
+        sec = Math.floor(sec)
+        var m = Math.floor(sec / 60)
+        var s = sec % 60
+        return m + ":" + (s < 10 ? "0" + s : s)
+    }
+
     Rectangle {
         id: mainRect
         anchors.fill: parent
@@ -630,11 +637,22 @@ ApplicationWindow {
                     Item {
                         width: parent.width * 0.3
                         height: parent.height
-                        Row { anchors.verticalCenter: parent.verticalCenter; spacing: 12
+                        Row { anchors.verticalCenter: parent.verticalCenter; spacing: 10
                             Text { text: currentStems.length > 0 ? currentStems[0].name : ""; color: "#00e388"; font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 1; font.weight: Font.Medium; visible: currentStems.length > 0 }
-                            Rectangle { width: 120; height: 4; radius: 2; color: Qt.rgba(1,1,1,0.06); anchors.verticalCenter: parent.verticalCenter; visible: currentStems.length > 0
-                                Rectangle { width: parent.width * 0.35; height: parent.height; radius: 2; color: "#00e388" }
+                            Text { text: formatTime(audioEngine ? audioEngine.position : 0); color: Qt.rgba(0.73,0.8,0.73,0.55); font.family: "Inter"; font.pixelSize: 11 }
+                            NeoSlider {
+                                id: progressSlider
+                                width: 200
+                                anchors.verticalCenter: parent.verticalCenter
+                                from: 0
+                                to: audioEngine ? audioEngine.duration : 100
+                                value: audioEngine ? audioEngine.position : 0
+                                accent: "#00e388"
+                                onPressedChanged: {
+                                    if (!pressed && audioEngine) audioEngine.seek(value)
+                                }
                             }
+                            Text { text: formatTime(audioEngine ? audioEngine.duration : 0); color: Qt.rgba(0.73,0.8,0.73,0.55); font.family: "Inter"; font.pixelSize: 11 }
                         }
                     }
 
@@ -651,22 +669,30 @@ ApplicationWindow {
                                     if (audioEngine) audioEngine.previous()
                                 }
                             }
-                            Rectangle {
+                                Rectangle {
+                                id: playBtn
                                 width: 58
                                 height: 58
                                 radius: 29
-                                color: playMouse.pressed
-                                       ? "#00b96d"
+                                property bool playing: false
+                                color: playing
+                                       ? "#FF4D6D"
                                        : playMouse.containsMouse
                                             ? "#14f19b"
                                             : "#00e388"
                                 Behavior on color { ColorAnimation { duration: 120 } }
                                 Text {
                                     anchors.centerIn: parent
-                                    text: "\uE037"
+                                    text: playBtn.playing ? "\uE034" : "\uE037"
                                     font.family: "Material Symbols Outlined"
                                     color: "#00391e"
                                     font.pixelSize: 30
+                                }
+                                Connections {
+                                    target: audioEngine
+                                    function onAllPlayingChanged() {
+                                        playBtn.playing = audioEngine.allPlaying
+                                    }
                                 }
                                 MouseArea {
                                     id: playMouse

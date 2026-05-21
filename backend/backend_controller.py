@@ -59,6 +59,9 @@ class BackendController(QObject):
     stemSoloChanged = Signal(str, bool)
     waveformReady = Signal(str, object)
     gpuInfoChanged = Signal()
+    positionChanged = Signal(float)
+    durationChanged = Signal(float)
+    allPlayingChanged = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -83,6 +86,11 @@ class BackendController(QObject):
         self._splitter.progressChanged.connect(self.progressUpdated)
         self._splitter.statusChanged.connect(self._on_status_updated)
         self._splitter.finished.connect(self._on_split_finished)
+
+        self._position = 0.0
+        self._duration = 0.0
+        self._audio_engine.positionChanged.connect(self._on_position_changed)
+        self._audio_engine.durationChanged.connect(self._on_duration_changed)
 
         self._gpu_monitor = QTimer(self)
         self._gpu_monitor.setInterval(2000)
@@ -497,6 +505,36 @@ class BackendController(QObject):
     def cancelSplit(self):
         self._splitter.cancel()
 
+    def _get_all_playing(self):
+        return self._all_playing
+
+    allPlaying = Property(bool, _get_all_playing, notify=allPlayingChanged)
+
+    @Slot(float)
+    def setMasterVolume(self, vol):
+        self._audio_engine.setMasterVolume(vol)
+
+    def _on_position_changed(self, pos):
+        self._position = pos
+        self.positionChanged.emit(pos)
+
+    def _on_duration_changed(self, dur):
+        self._duration = dur
+        self.durationChanged.emit(dur)
+
+    def _get_position(self):
+        return self._position
+
+    def _get_duration(self):
+        return self._duration
+
+    position = Property(float, _get_position, notify=positionChanged)
+    duration = Property(float, _get_duration, notify=durationChanged)
+
+    @Slot(float)
+    def seek(self, position_sec):
+        self._audio_engine.seek(position_sec)
+
     @Slot()
     def togglePlayAll(self):
         if self._all_playing:
@@ -505,6 +543,7 @@ class BackendController(QObject):
         else:
             self._audio_engine.playAll()
             self._all_playing = True
+        self.allPlayingChanged.emit()
 
     @Slot(list)
     def loadStems(self, stems):
