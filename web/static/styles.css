@@ -57,7 +57,7 @@ nav { display: flex; gap: 20px; flex: 1; }
   background: rgba(255,255,255,.015);
 }
 .drop-zone input { display: none; }
-.material, #playBtn { font-family: "Material Symbols Outlined"; }
+.material, #playBtn, .volume-icon { font-family: "Material Symbols Outlined"; }
 .drop-zone .material { color: #00e388; font-size: 40px; }
 .drop-zone small, .card-head span { color: rgba(186,204,186,.45); }
 .wave-card, .panel {
@@ -200,7 +200,7 @@ canvas {
   letter-spacing: .4px;
   text-transform: uppercase;
 }
-.control-field span, .master span {
+.control-field span, .master-label {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -351,6 +351,16 @@ input[type="range"] {
   letter-spacing: .4px;
   text-transform: uppercase;
 }
+.master-control {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+.volume-icon {
+  color: rgba(186,204,186,.45);
+  font-size: 20px;
+}
 .overlay {
   position: fixed;
   inset: 0;
@@ -412,7 +422,7 @@ input[type="range"] {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-@media (max-width: 820px) {
+@media (max-width: 1024px) {
   .topbar { height: auto; flex-wrap: wrap; padding: 16px; gap: 14px; }
   nav { order: 3; flex-basis: 100%; gap: 14px; overflow-x: auto; }
   .view { padding: 20px 16px; }
@@ -426,5 +436,82 @@ input[type="range"] {
     padding: 14px;
   }
   .stem-actions { grid-template-columns: 1fr auto; gap: 14px; }
-  .player { grid-template-columns: auto 52px 1fr; padding: 0 16px; }
+  .player {
+    grid-template-columns: minmax(44px, 72px) 48px 112px;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 0 12px;
+  }
+  .player > * {
+    min-width: 0;
+  }
+  .master {
+    position: absolute;
+    right: 12px;
+    top: 24px;
+    width: 112px;
+    max-width: 112px;
+    justify-self: end;
+    gap: 4px;
+    font-size: 10px;
+  }
+  .master-label {
+    display: none;
+  }
+  .master-control {
+    grid-template-columns: 18px 94px;
+    gap: 6px;
+  }
+  .volume-icon {
+    font-size: 18px;
+  }
+  .master input[type="range"] {
+    width: 94px;
+    max-width: 94px;
+    min-width: 0;
+  }
+  #playBtn {
+    position: absolute;
+    left: 50%;
+    top: 14px;
+    transform: translateX(-50%);
+  }
+}
+
+@media (max-width: 560px) {
+  .player {
+    grid-template-columns: minmax(32px, 48px) 46px 96px;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 0 12px;
+  }
+  #activeStem {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #playBtn {
+    width: 44px;
+    height: 44px;
+    border-radius: 22px;
+    font-size: 26px;
+  }
+  .master {
+    right: 10px;
+    width: 104px;
+    max-width: 104px;
+    justify-self: end;
+    gap: 4px;
+    font-size: 10px;
+  }
+  .master-control {
+    grid-template-columns: 18px 80px;
+    gap: 6px;
+  }
+  .master input[type="range"] {
+    width: 80px;
+    max-width: 80px;
+    min-width: 0;
+  }
 }

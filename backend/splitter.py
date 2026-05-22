@@ -17,7 +17,7 @@ class SplitWorker(QObject):
     finished = Signal(str, list)
 
     def __init__(self, file_path, output_dir, original_stem=None, original_ext=".wav", models=None,
-                 segment_size=10, overlap=0.25, shifts=1):
+                 segment_size=5, overlap=0.25, shifts=1):
         super().__init__()
         self.file_path = file_path
         self.output_dir = output_dir
@@ -199,8 +199,8 @@ class Splitter(QObject):
         self._thread = None
         self._worker = None
         self._cleanup_path = None
-        self.selectedModel = "htdemucs"
-        self.segmentSize = 10
+        self.selectedModel = "htdemucs_6s"
+        self.segmentSize = 5
         self.overlap = 0.25
         self.shifts = 1
 

@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>StemSplit AI Web</title>
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="/static/styles.css?v=3" />
   </head>
   <body>
     <main class="app">
@@ -66,13 +66,13 @@
               <select id="model">
                 <option value="htdemucs">htdemucs</option>
                 <option value="htdemucs_ft">htdemucs_ft</option>
-                <option value="htdemucs_6s">htdemucs_6s</option>
+                <option value="htdemucs_6s" selected>htdemucs_6s</option>
                 <option value="mdx_extra">mdx_extra</option>
               </select>
             </label>
             <label class="control-field slider-field">
-              <span>Segment <b id="segmentValue">10s</b></span>
-              <input id="segment" type="range" min="1" max="30" value="10" />
+              <span>Segment <b id="segmentValue">5s</b></span>
+              <input id="segment" type="range" min="1" max="30" value="5" />
             </label>
             <label class="control-field slider-field">
               <span>Overlap <b id="overlapValue">0.25</b></span>
@@ -98,8 +98,11 @@
         <span id="activeStem">mix</span>
         <button id="playBtn">play_arrow</button>
         <label class="master">
-          <span>Master <b id="masterValue">80%</b></span>
-          <input id="masterVolume" type="range" min="0" max="100" value="80" />
+          <span class="master-label">Master <b id="masterValue">80%</b></span>
+          <span class="master-control">
+            <span class="volume-icon">volume_up</span>
+            <input id="masterVolume" type="range" min="0" max="100" value="80" />
+          </span>
         </label>
       </footer>
     </main>

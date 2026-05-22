@@ -180,8 +180,8 @@ def index():
 @app.post("/api/jobs")
 async def create_job(
     file: UploadFile = File(...),
-    model: str = Form("htdemucs"),
-    segment: int = Form(10),
+    model: str = Form("htdemucs_6s"),
+    segment: int = Form(5),
     overlap: float = Form(0.25),
     shifts: int = Form(1),
 ):
@@ -256,4 +256,4 @@ def system_info():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("web_app:app", host="127.0.0.1", port=8000, reload=False)
+    uvicorn.run("web_app:app", host="0.0.0.0", port=8000, reload=False)

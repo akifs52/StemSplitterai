@@ -26,8 +26,8 @@ ApplicationWindow {
     property var currentStems: []
     property int activeSection: 0
     property int procProgress: 0
-    property string selectedModel: "htdemucs"
-    property int segmentSize: 10
+    property string selectedModel: "htdemucs_6s"
+    property int segmentSize: 5
     property real overlapValue: 0.25
     property int shiftsValue: 1
     property string soloStem: ""
@@ -92,6 +92,14 @@ ApplicationWindow {
         return msg
     }
 
+    function setActiveSection(index) {
+        activeSection = Math.max(0, Math.min(3, index))
+    }
+
+    function shiftSection(delta) {
+        setActiveSection(activeSection + delta)
+    }
+
     Rectangle {
         id: mainRect
         anchors.fill: parent
@@ -149,14 +157,28 @@ ApplicationWindow {
                 gpuInfo: backend ? backend.gpuInfo : "Checking..."
                 gpuAvailable: backend ? backend.gpuAvailable : false
                 activeTab: activeSection
-                onTabClicked: function(i) { activeSection = i }
+                onTabClicked: function(i) { setActiveSection(i) }
                 onMinimizeClicked: app.showMinimized()
                 onCloseClicked: Qt.quit()
             }
 
             Item {
+                id: contentArea
                 width: parent.width
                 height: parent.height - topBar.height - 72
+
+                WheelHandler {
+                    target: contentArea
+                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                    onWheel: function(event) {
+                        var dx = event.angleDelta.x
+                        var dy = event.angleDelta.y
+                        if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.25)
+                            return
+                        shiftSection(dx < 0 ? 1 : -1)
+                        event.accepted = true
+                    }
+                }
 
                 // ===== DASHBOARD (Section 0) =====
                 Rectangle {
@@ -197,7 +219,7 @@ ApplicationWindow {
                                             loadingPopup.statusText = "Preparing audio file..."
                                             loadingOverlay.visible = true
                                             loadingDelayTimer.callback = function() {
-                                                activeSection = 1
+                                                setActiveSection(1)
                                                 backend.startSplit(path)
                                             }
                                             loadingDelayTimer.start()
@@ -603,7 +625,7 @@ ApplicationWindow {
                                                 id: modelBox
                                                 width: parent.width
                                                 model: ["htdemucs", "htdemucs_ft", "htdemucs_6s", "mdx_extra"]
-                                                currentIndex: 0
+                                                currentIndex: 2
                                                 onCurrentTextChanged: {
                                                     selectedModel = currentText
                                                     backend.selectedModel = currentText
@@ -618,7 +640,7 @@ ApplicationWindow {
                                                 from: 1
                                                 to: 30
                                                 stepSize: 1
-                                                value: 10
+                                                value: 5
                                                 onValueChanged: {
                                                     segmentSize = value
                                                     backend.segmentSize = value
@@ -930,7 +952,7 @@ ApplicationWindow {
                                     if (audioEngine) audioEngine.setMasterVolume(value / 100.0)
                                 }
                             }
-                            Text { text: "\uE8B8"; font.family: "Material Symbols Outlined"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.pixelSize: 20; anchors.verticalCenter: parent.verticalCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: activeSection = 3 } }
+                            Text { text: "\uE8B8"; font.family: "Material Symbols Outlined"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.pixelSize: 20; anchors.verticalCenter: parent.verticalCenter; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: setActiveSection(3) } }
                         }
                     }
                 }
@@ -949,7 +971,7 @@ ApplicationWindow {
         function onSplitStarted(fp) {
             loadingPopup.statusText = "Preparing separation..."
             loadingOverlay.visible = true
-            currentStems = []; stemColors = ({}); stemWaveforms = ({}); activeSection = 1; if (audioEngine) audioEngine.clearAll()
+            currentStems = []; stemColors = ({}); stemWaveforms = ({}); setActiveSection(1); if (audioEngine) audioEngine.clearAll()
             wavePanel.waveformData = []
             wavePanel.hasAudio = false
         }
@@ -974,7 +996,7 @@ ApplicationWindow {
             var stems = JSON.parse(stemsJson)
             if (status === "ok") {
                 assignStemColors(stems)
-                currentStems = stems; activeSection = 2
+                currentStems = stems; setActiveSection(2)
                 if (audioEngine) audioEngine.loadStems(stems)
             } else {
                 statusLabel.text = status

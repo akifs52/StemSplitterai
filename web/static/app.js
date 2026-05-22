@@ -16,6 +16,7 @@ const state = {
 };
 
 const palette = ["#FF4D6D", "#4FC3F7", "#FFD166", "#8BE9C1", "#C77DFF", "#FF9F1C", "#2EC4B6", "#E76F51"];
+const viewOrder = ["dashboard", "mixer", "settings"];
 const $ = (id) => document.getElementById(id);
 
 function shuffle(items) {
@@ -36,6 +37,21 @@ function setView(name) {
   document.querySelectorAll(".view").forEach((el) => el.classList.toggle("active", el.id === name));
   document.querySelectorAll(".tab").forEach((el) => el.classList.toggle("active", el.dataset.view === name));
   requestAnimationFrame(redrawPlaybackSurfaces);
+}
+
+function activeViewName() {
+  return document.querySelector(".view.active")?.id || viewOrder[0];
+}
+
+function shiftView(direction) {
+  const current = viewOrder.indexOf(activeViewName());
+  if (current < 0) return;
+  const next = Math.max(0, Math.min(viewOrder.length - 1, current + direction));
+  if (next !== current) setView(viewOrder[next]);
+}
+
+function isInteractiveSwipeTarget(target) {
+  return Boolean(target.closest("input, select, button, a, label, .progress-area, .drop-zone"));
 }
 
 function normalizeWave(data) {
@@ -356,6 +372,27 @@ async function uploadFile(file) {
 }
 
 document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => setView(tab.dataset.view)));
+let swipeStart = null;
+document.querySelector(".app").addEventListener("touchstart", (event) => {
+  if (isInteractiveSwipeTarget(event.target) || event.touches.length !== 1) return;
+  const touch = event.touches[0];
+  swipeStart = { x: touch.clientX, y: touch.clientY };
+}, { passive: true });
+document.querySelector(".app").addEventListener("touchend", (event) => {
+  if (!swipeStart || !event.changedTouches.length) return;
+  const touch = event.changedTouches[0];
+  const dx = touch.clientX - swipeStart.x;
+  const dy = touch.clientY - swipeStart.y;
+  swipeStart = null;
+  if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.35) return;
+  shiftView(dx < 0 ? 1 : -1);
+}, { passive: true });
+document.querySelector(".app").addEventListener("wheel", (event) => {
+  if (isInteractiveSwipeTarget(event.target)) return;
+  if (Math.abs(event.deltaX) < 45 || Math.abs(event.deltaX) < Math.abs(event.deltaY) * 1.25) return;
+  event.preventDefault();
+  shiftView(event.deltaX > 0 ? 1 : -1);
+}, { passive: false });
 $("fileInput").addEventListener("change", (event) => event.target.files[0] && uploadFile(event.target.files[0]));
 $("dropZone").addEventListener("dragover", (event) => event.preventDefault());
 $("dropZone").addEventListener("drop", (event) => {
