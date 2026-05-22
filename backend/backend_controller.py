@@ -1,12 +1,12 @@
 import os
-import subprocess
 import sqlite3
 import datetime
 import json
 import shutil
+import sys
 from PySide6.QtCore import (
     QObject, Signal, Slot, Property, QTimer, QThread,
-    QAbstractListModel, Qt,
+    QAbstractListModel, Qt, QProcess,
 )
 from PySide6.QtWidgets import QFileDialog
 
@@ -16,6 +16,7 @@ from backend.audio_player import AudioEngine, StemPlayer
 from backend.database import Database
 from backend.cache_manager import CacheManager
 from backend.waveform import compute_waveform
+from backend.process_utils import ffmpeg_program, run_hidden
 
 
 class HistoryListModel(QAbstractListModel):
@@ -110,6 +111,7 @@ class BackendController(QObject):
         self._gpu_load = 0
         self._vram_used = "0"
         self._vram_total = "0"
+        self._gpu_process = None
         self._history_model = HistoryListModel()
         self._soloed_stems = set()
         self._current_file = ""
@@ -129,7 +131,7 @@ class BackendController(QObject):
         self._audio_engine.durationChanged.connect(self._on_duration_changed)
 
         self._gpu_monitor = QTimer(self)
-        self._gpu_monitor.setInterval(2000)
+        self._gpu_monitor.setInterval(5000)
         self._gpu_monitor.timeout.connect(self._poll_gpu_stats)
         self._gpu_monitor.start()
 
@@ -175,22 +177,37 @@ class BackendController(QObject):
             self._gpu_available = False
         self.gpuInfoChanged.emit()
 
+    def _demucs_installed(self):
+        if hasattr(sys, 'frozen'):
+            try:
+                import importlib
+                importlib.import_module('demucs')
+                return True
+            except Exception:
+                return False
+        try:
+            r = run_hidden(
+                [sys.executable, "-m", "demucs", "--help"],
+                capture_output=True, timeout=10
+            )
+            return r.returncode == 0
+        except Exception:
+            return False
+
     @Slot()
     def startDemucsCheck(self):
         class DemucsCheck(QObject):
             done = Signal(bool)
             @Slot()
             def run(self):
-                import subprocess, sys
-                try:
-                    r = subprocess.run([sys.executable, "-m", "demucs", "--help"],
-                                       capture_output=True, timeout=10)
-                    self.done.emit(r.returncode == 0)
-                except Exception:
-                    self.done.emit(False)
+                ok = self._parent._demucs_installed()
+                self.done.emit(ok)
+            def __init__(self, parent):
+                super().__init__()
+                self._parent = parent
 
         self._demucs_check_thread = QThread()
-        self._demucs_check_worker = DemucsCheck()
+        self._demucs_check_worker = DemucsCheck(self)
         self._demucs_check_worker.moveToThread(self._demucs_check_thread)
         self._demucs_check_thread.started.connect(self._demucs_check_worker.run)
         self._demucs_check_worker.done.connect(lambda ok: self._on_startup_demucs_checked(ok))
@@ -205,27 +222,30 @@ class BackendController(QObject):
 
     @Slot(result=bool)
     def checkDemucs(self):
-        try:
-            import subprocess, sys
-            r = subprocess.run(
-                [sys.executable, "-m", "demucs", "--help"],
-                capture_output=True, timeout=10
-            )
-            return r.returncode == 0
-        except Exception:
-            return False
+        return self._demucs_installed()
 
     def _poll_gpu_stats(self):
-        if not self._gpu_available:
+        if not self._gpu_available or self._gpu_process is not None:
             return
+
+        process = QProcess(self)
+        process.setProgram("nvidia-smi")
+        process.setArguments([
+            "--query-gpu=utilization.gpu,memory.used,memory.total",
+            "--format=csv,noheader,nounits",
+        ])
+        process.finished.connect(lambda code, _status: self._on_gpu_stats_finished(process, code))
+        process.errorOccurred.connect(lambda _error: self._on_gpu_stats_error(process))
+        self._gpu_process = process
+        process.start()
+
+    def _on_gpu_stats_finished(self, process, code):
+        if self._gpu_process is process:
+            self._gpu_process = None
         try:
-            r = subprocess.run(
-                ["nvidia-smi", "--query-gpu=utilization.gpu,memory.used,memory.total",
-                 "--format=csv,noheader,nounits"],
-                capture_output=True, text=True, timeout=3
-            )
-            if r.returncode == 0:
-                parts = r.stdout.strip().split(", ")
+            if code == 0:
+                out = process.readAllStandardOutput().data().decode("utf-8", errors="replace")
+                parts = out.strip().split(", ")
                 if len(parts) >= 3:
                     self._gpu_load = int(float(parts[0]))
                     self._vram_used = str(int(float(parts[1])))
@@ -233,6 +253,12 @@ class BackendController(QObject):
                     self.gpuInfoChanged.emit()
         except Exception:
             pass
+        process.deleteLater()
+
+    def _on_gpu_stats_error(self, process):
+        if self._gpu_process is process:
+            self._gpu_process = None
+        process.deleteLater()
 
     def _get_gpu_load(self):
         return self._gpu_load
@@ -307,16 +333,14 @@ class BackendController(QObject):
             done = Signal(bool)
             @Slot()
             def run(self):
-                import subprocess, sys
-                try:
-                    r = subprocess.run([sys.executable, "-m", "demucs", "--help"],
-                                       capture_output=True, timeout=10)
-                    self.done.emit(r.returncode == 0)
-                except Exception:
-                    self.done.emit(False)
+                ok = self._parent._demucs_installed()
+                self.done.emit(ok)
+            def __init__(self, parent):
+                super().__init__()
+                self._parent = parent
 
         self._demucs_thread = QThread()
-        self._demucs_worker = DemucsCheck()
+        self._demucs_worker = DemucsCheck(self)
         self._demucs_worker.moveToThread(self._demucs_thread)
         self._demucs_thread.started.connect(self._demucs_worker.run)
         self._demucs_worker.done.connect(lambda ok: self._on_demucs_checked(ok))
@@ -362,7 +386,7 @@ class BackendController(QObject):
         if os.path.isfile(target_path) and os.path.getmtime(target_path) >= os.path.getmtime(wav_path):
             return target_path
 
-        args = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", wav_path, "-vn"]
+        args = [ffmpeg_program(), "-y", "-hide_banner", "-loglevel", "error", "-i", wav_path, "-vn"]
         if target_ext == ".mp3":
             args += ["-codec:a", "libmp3lame", "-q:a", "2"]
         elif target_ext == ".flac":
@@ -374,7 +398,7 @@ class BackendController(QObject):
         args.append(target_path)
 
         try:
-            subprocess.run(args, capture_output=True, text=True, check=True, timeout=600)
+            run_hidden(args, capture_output=True, text=True, check=True, timeout=600)
             return target_path
         except Exception as e:
             self._log(f"Stem format conversion failed: {e}")

@@ -3,12 +3,12 @@ import sys
 import time
 import tempfile
 import shutil
-import subprocess
 
 from PySide6.QtCore import QObject, Signal, Slot, QThread, QProcess
 
 from backend.progress_parser import ProgressParser
 from backend.cuda_checker import has_cuda
+from backend.process_utils import ffmpeg_program, run_hidden
 
 
 class SplitWorker(QObject):
@@ -32,7 +32,7 @@ class SplitWorker(QObject):
 
     def _conversion_args(self, src_path, dst_path):
         ext = os.path.splitext(dst_path)[1].lower()
-        args = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", src_path, "-vn"]
+        args = [ffmpeg_program(), "-y", "-hide_banner", "-loglevel", "error", "-i", src_path, "-vn"]
         if ext == ".mp3":
             args += ["-codec:a", "libmp3lame", "-q:a", "2"]
         elif ext == ".flac":
@@ -52,7 +52,7 @@ class SplitWorker(QObject):
         if os.path.isfile(dst_path) and os.path.getmtime(dst_path) >= os.path.getmtime(wav_path):
             return dst_path
 
-        subprocess.run(
+        run_hidden(
             self._conversion_args(wav_path, dst_path),
             capture_output=True,
             text=True,
@@ -94,16 +94,21 @@ class SplitWorker(QObject):
         process = QProcess()
         self._process = process
 
-        program = sys.executable or "python"
-        args = ["-m", "demucs", "-n", model_name, "-o", self.output_dir,
-                "--segment", str(self.segment_size),
-                "--overlap", str(self.overlap),
-                "--shifts", str(self.shifts)]
+        demucs_args = ["-n", model_name, "-o", self.output_dir,
+                       "--segment", str(self.segment_size),
+                       "--overlap", str(self.overlap),
+                       "--shifts", str(self.shifts)]
         if has_cuda():
-            args += ["--device", "cuda"]
+            demucs_args += ["--device", "cuda"]
         else:
-            args += ["--device", "cpu"]
-        args.append(self.file_path)
+            demucs_args += ["--device", "cpu"]
+        demucs_args.append(self.file_path)
+
+        program = sys.executable or shutil.which("python") or "python"
+        if getattr(sys, "frozen", False):
+            args = ["--stemsplit-demucs", *demucs_args]
+        else:
+            args = ["-m", "demucs", *demucs_args]
 
         process.start(program, args)
 

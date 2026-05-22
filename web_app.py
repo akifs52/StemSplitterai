@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from backend.cuda_checker import has_cuda
 from backend.progress_parser import ProgressParser
 from backend.waveform import compute_waveform
+from backend.process_utils import ffmpeg_program, run_hidden, popen_hidden
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -47,7 +48,7 @@ def _safe_name(name):
 
 def _conversion_args(src_path, dst_path):
     ext = Path(dst_path).suffix.lower()
-    args = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", str(src_path), "-vn"]
+    args = [ffmpeg_program(), "-y", "-hide_banner", "-loglevel", "error", "-i", str(src_path), "-vn"]
     if ext == ".mp3":
         args += ["-codec:a", "libmp3lame", "-q:a", "2"]
     elif ext == ".flac":
@@ -64,7 +65,7 @@ def _convert_if_needed(src_path, target_ext):
     if target_ext == ".wav":
         return src_path
     dst_path = src_path.with_suffix(target_ext)
-    subprocess.run(_conversion_args(src_path, dst_path), capture_output=True, text=True, check=True)
+    run_hidden(_conversion_args(src_path, dst_path), capture_output=True, text=True, check=True)
     return dst_path
 
 
@@ -116,7 +117,7 @@ def _run_split(job_id):
     ]
 
     _set_job(job_id, status="running", stage=model, progress=1)
-    process = subprocess.Popen(
+    process = popen_hidden(
         args,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,

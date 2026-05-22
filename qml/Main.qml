@@ -93,7 +93,13 @@ ApplicationWindow {
     }
 
     function setActiveSection(index) {
-        activeSection = Math.max(0, Math.min(3, index))
+        var next = Math.max(0, Math.min(3, index))
+        if (next === activeSection)
+            return
+        contentArea.previousSection = activeSection
+        contentArea.transitionDirection = next > activeSection ? 1 : -1
+        activeSection = next
+        contentArea.restartPageTransition()
     }
 
     function shiftSection(delta) {
@@ -166,6 +172,89 @@ ApplicationWindow {
                 id: contentArea
                 width: parent.width
                 height: parent.height - topBar.height - 72
+                clip: true
+                property int transitionDirection: 1
+                property int previousSection: -1
+                property bool isPageTransitioning: false
+                property real pageOffset: 0
+                property real previousPageOffset: 0
+                property real swipeOffset: 0
+                property bool isSwiping: false
+                property int swipeTargetSection: {
+                    if (!isSwiping || Math.abs(swipeOffset) < 10)
+                        return -1
+                    return Math.max(0, Math.min(3, activeSection + (swipeOffset < 0 ? 1 : -1)))
+                }
+
+                function restartPageTransition() {
+                    isPageTransitioning = true
+                    pageOffset = transitionDirection * contentArea.width
+                    previousPageOffset = 0
+                    pageOpacity = 0.86
+                    pageTransition.restart()
+                }
+
+                function finishSwipe(next, offset) {
+                    next = Math.max(0, Math.min(3, next))
+                    if (next === activeSection) {
+                        swipeOffset = 0
+                        isSwiping = false
+                        return
+                    }
+
+                    previousSection = activeSection
+                    transitionDirection = next > activeSection ? 1 : -1
+                    previousPageOffset = offset
+                    pageOffset = (transitionDirection > 0 ? contentArea.width : -contentArea.width) + offset
+                    pageOpacity = 1.0
+                    isSwiping = false
+                    swipeOffset = 0
+                    isPageTransitioning = true
+                    activeSection = next
+                    pageTransition.restart()
+                }
+
+                function sectionVisible(index) {
+                    return index === activeSection
+                           || (isPageTransitioning && index === previousSection)
+                           || (isSwiping && index === swipeTargetSection)
+                }
+
+                function sectionX(index) {
+                    if (isPageTransitioning) {
+                        if (index === activeSection)
+                            return pageOffset
+                        if (index === previousSection)
+                            return previousPageOffset
+                    }
+
+                    if (isSwiping) {
+                        if (index === activeSection)
+                            return swipeOffset
+                        if (index === swipeTargetSection)
+                            return swipeOffset < 0
+                                   ? contentArea.width + swipeOffset
+                                   : -contentArea.width + swipeOffset
+                    }
+
+                    return 0
+                }
+
+                property real pageOpacity: 1.0
+
+                SequentialAnimation {
+                    id: pageTransition
+                    ParallelAnimation {
+                        NumberAnimation { target: contentArea; property: "pageOffset"; to: 0; duration: 170; easing.type: Easing.OutCubic }
+                        NumberAnimation { target: contentArea; property: "previousPageOffset"; to: -contentArea.transitionDirection * contentArea.width; duration: 170; easing.type: Easing.OutCubic }
+                        NumberAnimation { target: contentArea; property: "pageOpacity"; to: 1.0; duration: 130; easing.type: Easing.OutQuad }
+                    }
+                    onStopped: {
+                        contentArea.isPageTransitioning = false
+                        contentArea.previousSection = -1
+                        contentArea.previousPageOffset = 0
+                    }
+                }
 
                 WheelHandler {
                     target: contentArea
@@ -173,24 +262,69 @@ ApplicationWindow {
                     onWheel: function(event) {
                         var dx = event.angleDelta.x
                         var dy = event.angleDelta.y
-                        if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.25)
+                        if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.25) {
+                            event.accepted = false
                             return
+                        }
                         shiftSection(dx < 0 ? 1 : -1)
                         event.accepted = true
                     }
                 }
 
+                MouseArea {
+                    anchors.fill: parent
+                    property real startX: 0
+                    property bool isHorizontalSwipe: false
+
+                    onPressed: function(mouse) {
+                        startX = mouse.x
+                        isHorizontalSwipe = false
+                        contentArea.isSwiping = true
+                    }
+
+                    onPositionChanged: function(mouse) {
+                        var dx = mouse.x - startX
+                        if (Math.abs(dx) > 10) {
+                            isHorizontalSwipe = true
+                        }
+                        if (isHorizontalSwipe) {
+                            contentArea.swipeOffset = dx
+                        }
+                    }
+
+                    onReleased: function(mouse) {
+                        var dx = mouse.x - startX
+                        if (Math.abs(dx) > 50) {
+                            contentArea.finishSwipe(activeSection + (dx > 0 ? -1 : 1), dx)
+                        } else {
+                            contentArea.isSwiping = false
+                            contentArea.swipeOffset = 0
+                        }
+                    }
+
+                    onCanceled: {
+                        contentArea.isSwiping = false
+                        contentArea.swipeOffset = 0
+                    }
+                }
+
                 // ===== DASHBOARD (Section 0) =====
                 Rectangle {
-                    anchors.fill: parent
+                    width: parent.width
+                    height: parent.height
+                    y: 0
+                    x: contentArea.sectionX(0)
+                    opacity: activeSection === 0 ? contentArea.pageOpacity : 1.0
                     color: "transparent"
-                    visible: activeSection === 0
+                    visible: contentArea.sectionVisible(0)
+                    enabled: activeSection === 0
 
                     Flickable {
                         anchors.fill: parent
                         anchors.margins: 32
                         contentHeight: dashCol.height + 60
                         clip: true
+                        interactive: !contentArea.isSwiping
                         ScrollBar.vertical: ScrollBar { width: 4; policy: ScrollBar.AsNeeded }
 
                         Column {
@@ -352,15 +486,21 @@ ApplicationWindow {
 
                 // ===== PROCESSING (Section 1) =====
                 Rectangle {
-                    anchors.fill: parent
+                    width: parent.width
+                    height: parent.height
+                    y: 0
+                    x: contentArea.sectionX(1)
+                    opacity: activeSection === 1 ? contentArea.pageOpacity : 1.0
                     color: "transparent"
-                    visible: activeSection === 1
+                    visible: contentArea.sectionVisible(1)
+                    enabled: activeSection === 1
 
                     Flickable {
                         anchors.fill: parent
                         anchors.margins: 32
                         contentHeight: procCol.height + 60
                         clip: true
+                        interactive: !contentArea.isSwiping
                         ScrollBar.vertical: ScrollBar { width: 4; policy: ScrollBar.AsNeeded }
 
                         Column {
@@ -466,15 +606,21 @@ ApplicationWindow {
 
                 // ===== STEM MIXER (Section 2) =====
                 Rectangle {
-                    anchors.fill: parent
+                    width: parent.width
+                    height: parent.height
+                    y: 0
+                    x: contentArea.sectionX(2)
+                    opacity: activeSection === 2 ? contentArea.pageOpacity : 1.0
                     color: "transparent"
-                    visible: activeSection === 2
+                    visible: contentArea.sectionVisible(2)
+                    enabled: activeSection === 2
 
                     Flickable {
                         anchors.fill: parent
                         anchors.margins: 32
                         contentHeight: mixCol.height + 60
                         clip: true
+                        interactive: !contentArea.isSwiping
                         ScrollBar.vertical: ScrollBar { width: 4; policy: ScrollBar.AsNeeded }
 
                         Column {
@@ -560,15 +706,21 @@ ApplicationWindow {
 
                 // ===== SETTINGS (Section 3) =====
                 Rectangle {
-                    anchors.fill: parent
+                    width: parent.width
+                    height: parent.height
+                    y: 0
+                    x: contentArea.sectionX(3)
+                    opacity: activeSection === 3 ? contentArea.pageOpacity : 1.0
                     color: "transparent"
-                    visible: activeSection === 3
+                    visible: contentArea.sectionVisible(3)
+                    enabled: activeSection === 3
 
                     Flickable {
                         anchors.fill: parent
                         anchors.margins: 32
                         contentHeight: setCol.height + 60
                         clip: true
+                        interactive: !contentArea.isSwiping
                         ScrollBar.vertical: ScrollBar { width: 4; policy: ScrollBar.AsNeeded }
 
                         Column {
