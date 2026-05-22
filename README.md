@@ -79,3 +79,27 @@ The compose file mounts `uploads/` and `separated/` so uploaded files and genera
 ├── main.py                     # Entry point
 └── requirements.txt
 ```
+
+## Build & Release
+
+To create a standalone executable setup file for Windows, follow these steps:
+
+### Method A: Command Line
+If you have already built the PyInstaller distribution, you can directly run the Inno Setup Compiler:
+
+```bash
+"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\stemsplitai.iss
+```
+
+### Method B: Automatic Build Script
+This method runs PyInstaller, creates the Inno Setup installer, and generates the `latest.json` for the auto-update system.
+
+First, build the executable with PyInstaller:
+```bash
+pyinstaller StemSplitAI.spec --noconfirm
+```
+
+Then, run the build script to generate the setup and update manifest:
+```bash
+python scripts\build_release.py --skip-pyinstaller
+```
