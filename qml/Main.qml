@@ -35,6 +35,12 @@ ApplicationWindow {
     property var stemWaveforms: ({})
     property var stemColors: ({})
 
+    // --- Update state ---
+    property string updateStatus: ""       // "", "checking", "available", "uptodate", "downloading", "ready", "error"
+    property string updateVersion: ""
+    property string updateNotes: ""
+    property int updateProgress: 0
+
     function formatTime(sec) {
         sec = Math.floor(sec)
         var m = Math.floor(sec / 60)
@@ -162,6 +168,7 @@ ApplicationWindow {
                 id: topBar
                 gpuInfo: backend ? backend.gpuInfo : "Checking..."
                 gpuAvailable: backend ? backend.gpuAvailable : false
+                hasUpdate: backend ? backend.updateAvailable : false
                 activeTab: activeSection
                 onTabClicked: function(i) { setActiveSection(i) }
                 onMinimizeClicked: app.showMinimized()
@@ -857,6 +864,177 @@ ApplicationWindow {
                                         }
                                     }
                                 }
+
+                                // ===== SOFTWARE UPDATES CARD =====
+                                Rectangle {
+                                    width: (parent.width - 24) * 0.52; height: 200; radius: 24
+                                    color: Qt.rgba(1,1,1,0.03)
+                                    border.color: updateStatus === "available" ? Qt.rgba(0, 0.89, 0.53, 0.25) : Qt.rgba(1,1,1,0.08)
+                                    border.width: 1
+                                    Behavior on border.color { ColorAnimation { duration: 300 } }
+
+                                    Column {
+                                        anchors.fill: parent; anchors.margins: 20; spacing: 14
+
+                                        // Header row
+                                        Item { width: parent.width; height: 24
+                                            Row { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; spacing: 8
+                                                Text { text: "\uE923"; font.family: "Material Symbols Outlined"; color: "#00e388"; font.pixelSize: 20; anchors.verticalCenter: parent.verticalCenter }
+                                                Text { text: "Software Updates"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 18; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
+                                            }
+                                            Text {
+                                                anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                                                text: "v" + (backend ? backend.appVersion : "---")
+                                                color: Qt.rgba(0.73, 0.8, 0.73, 0.55)
+                                                font.family: "Inter"; font.pixelSize: 12; font.weight: Font.Medium
+                                            }
+                                        }
+
+                                        // Status display
+                                        Rectangle {
+                                            width: parent.width; height: 52; radius: 10
+                                            color: {
+                                                if (updateStatus === "available") return Qt.rgba(0, 0.89, 0.53, 0.04)
+                                                if (updateStatus === "ready") return Qt.rgba(0, 0.89, 0.53, 0.06)
+                                                if (updateStatus === "error") return Qt.rgba(1, 0.3, 0.43, 0.04)
+                                                return Qt.rgba(1, 1, 1, 0.02)
+                                            }
+                                            border.color: {
+                                                if (updateStatus === "available" || updateStatus === "ready") return Qt.rgba(0, 0.89, 0.53, 0.25)
+                                                if (updateStatus === "error") return Qt.rgba(1, 0.3, 0.43, 0.25)
+                                                return Qt.rgba(1, 1, 1, 0.06)
+                                            }
+                                            border.width: 1
+
+                                            Item { anchors.fill: parent; anchors.margins: 12
+                                                // Checking spinner
+                                                Row {
+                                                    anchors.verticalCenter: parent.verticalCenter; spacing: 10
+                                                    visible: updateStatus === "checking"
+                                                    Canvas {
+                                                        id: updateSpinner; width: 18; height: 18
+                                                        onPaint: {
+                                                            var ctx = getContext("2d"); ctx.clearRect(0,0,width,height);
+                                                            ctx.strokeStyle = "#00e388"; ctx.lineWidth = 2.5; ctx.lineCap = "round";
+                                                            ctx.beginPath(); ctx.arc(9, 9, 6.5, 0, 1.4 * Math.PI); ctx.stroke();
+                                                        }
+                                                        RotationAnimator { target: updateSpinner; from: 0; to: 360; duration: 900; running: updateStatus === "checking"; loops: Animation.Infinite }
+                                                    }
+                                                    Text { text: "Checking for updates..."; color: Qt.rgba(0.73,0.8,0.73,0.6); font.family: "Inter"; font.pixelSize: 13; anchors.verticalCenter: parent.verticalCenter }
+                                                }
+
+                                                // Up to date
+                                                Row {
+                                                    anchors.verticalCenter: parent.verticalCenter; spacing: 8
+                                                    visible: updateStatus === "uptodate"
+                                                    Text { text: "\uE86C"; font.family: "Material Symbols Outlined"; color: "#00e388"; font.pixelSize: 18; anchors.verticalCenter: parent.verticalCenter }
+                                                    Text { text: "You're up to date"; color: "#00e388"; font.family: "Inter"; font.pixelSize: 13; font.weight: Font.Medium; anchors.verticalCenter: parent.verticalCenter }
+                                                }
+
+                                                // Update available
+                                                Item {
+                                                    anchors.fill: parent
+                                                    visible: updateStatus === "available"
+                                                    Column { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
+                                                        Text { text: "v" + updateVersion + " available"; color: "#00e388"; font.family: "Inter"; font.pixelSize: 14; font.weight: Font.DemiBold }
+                                                        Text { text: updateNotes; color: Qt.rgba(0.73,0.8,0.73,0.5); font.family: "Inter"; font.pixelSize: 11; elide: Text.ElideRight; width: 220 }
+                                                    }
+                                                }
+
+                                                // Downloading
+                                                Column {
+                                                    anchors.left: parent.left; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; spacing: 4
+                                                    visible: updateStatus === "downloading"
+                                                    Item { width: parent.width; height: 16
+                                                        Text { anchors.left: parent.left; text: "Downloading update..."; color: Qt.rgba(0.73,0.8,0.73,0.6); font.family: "Inter"; font.pixelSize: 12 }
+                                                        Text { anchors.right: parent.right; text: updateProgress + "%"; color: "#00e388"; font.family: "Inter"; font.pixelSize: 12; font.weight: Font.Medium }
+                                                    }
+                                                    Rectangle { width: parent.width; height: 4; radius: 2; color: Qt.rgba(1,1,1,0.06)
+                                                        Rectangle { width: parent.width * updateProgress / 100; height: parent.height; radius: 2; color: "#00e388"; Behavior on width { NumberAnimation { duration: 200 } } }
+                                                    }
+                                                }
+
+                                                // Ready to install
+                                                Row {
+                                                    anchors.verticalCenter: parent.verticalCenter; spacing: 8
+                                                    visible: updateStatus === "ready"
+                                                    Text { text: "\uE86C"; font.family: "Material Symbols Outlined"; color: "#00e388"; font.pixelSize: 18; anchors.verticalCenter: parent.verticalCenter }
+                                                    Text { text: "Download complete — ready to install"; color: "#00e388"; font.family: "Inter"; font.pixelSize: 13; font.weight: Font.Medium; anchors.verticalCenter: parent.verticalCenter }
+                                                }
+
+                                                // Error
+                                                Row {
+                                                    anchors.verticalCenter: parent.verticalCenter; spacing: 8
+                                                    visible: updateStatus === "error"
+                                                    Text { text: "\uE000"; font.family: "Material Symbols Outlined"; color: "#ffb4ab"; font.pixelSize: 18; anchors.verticalCenter: parent.verticalCenter }
+                                                    Text { text: "Could not check for updates"; color: "#ffb4ab"; font.family: "Inter"; font.pixelSize: 13; anchors.verticalCenter: parent.verticalCenter }
+                                                }
+
+                                                // Idle (no status yet)
+                                                Row {
+                                                    anchors.verticalCenter: parent.verticalCenter; spacing: 8
+                                                    visible: updateStatus === ""
+                                                    Text { text: "\uE8B8"; font.family: "Material Symbols Outlined"; color: Qt.rgba(0.73,0.8,0.73,0.4); font.pixelSize: 18; anchors.verticalCenter: parent.verticalCenter }
+                                                    Text { text: "Click below to check for updates"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 13; anchors.verticalCenter: parent.verticalCenter }
+                                                }
+                                            }
+                                        }
+
+                                        // Action buttons row
+                                        Row { spacing: 10
+                                            // Check / Retry button
+                                            Rectangle {
+                                                width: 160; height: 34; radius: 8
+                                                visible: updateStatus !== "downloading" && updateStatus !== "ready"
+                                                color: updateCheckMa.containsMouse ? Qt.rgba(0, 0.89, 0.53, 0.16) : Qt.rgba(0, 0.89, 0.53, 0.08)
+                                                border.color: Qt.rgba(0, 0.89, 0.53, 0.35); border.width: 1
+                                                Behavior on color { ColorAnimation { duration: 150 } }
+
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: updateStatus === "checking" ? "Checking..." : "Check for Updates"
+                                                    color: "#00e388"; font.family: "Inter"; font.pixelSize: 12; font.weight: Font.DemiBold
+                                                }
+                                                MouseArea {
+                                                    id: updateCheckMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                    enabled: updateStatus !== "checking"
+                                                    onClicked: { if (backend) backend.checkForUpdates() }
+                                                }
+                                            }
+
+                                            // Download button
+                                            Rectangle {
+                                                width: 160; height: 34; radius: 8
+                                                visible: updateStatus === "available"
+                                                color: updateDlMa.containsMouse ? "#14f19b" : "#00e388"
+                                                Behavior on color { ColorAnimation { duration: 150 } }
+
+                                                Text { anchors.centerIn: parent; text: "Download Update"; color: "#00391e"; font.family: "Inter"; font.pixelSize: 12; font.weight: Font.Bold }
+                                                MouseArea {
+                                                    id: updateDlMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                    onClicked: { if (backend) backend.downloadUpdate() }
+                                                }
+                                            }
+
+                                            // Install & Restart button
+                                            Rectangle {
+                                                width: 190; height: 34; radius: 8
+                                                visible: updateStatus === "ready"
+                                                color: updateInstMa.containsMouse ? "#14f19b" : "#00e388"
+                                                Behavior on color { ColorAnimation { duration: 150 } }
+
+                                                Row { anchors.centerIn: parent; spacing: 6
+                                                    Text { text: "\uE923"; font.family: "Material Symbols Outlined"; color: "#00391e"; font.pixelSize: 16; anchors.verticalCenter: parent.verticalCenter }
+                                                    Text { text: "Install & Restart"; color: "#00391e"; font.family: "Inter"; font.pixelSize: 12; font.weight: Font.Bold; anchors.verticalCenter: parent.verticalCenter }
+                                                }
+                                                MouseArea {
+                                                    id: updateInstMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                    onClicked: { if (backend) backend.installUpdate() }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -1313,10 +1491,35 @@ ApplicationWindow {
         }
     }
 
+    // --- Update backend connections ---
+    Connections {
+        target: backend
+        function onUpdateStatusChanged(status) {
+            updateStatus = status
+        }
+        function onUpdateAvailableChanged() {
+            updateVersion = backend.updateVersion
+            updateNotes = backend.updateNotes
+        }
+        function onUpdateDownloadProgressChanged() {
+            updateProgress = backend.updateDownloadProgress
+        }
+    }
+
+    Timer {
+        id: updateCheckTimer
+        interval: 3000
+        repeat: false
+        onTriggered: {
+            if (backend) backend.checkForUpdates()
+        }
+    }
+
     Component.onCompleted: {
         if (backend) {
             backend.checkGpu()
             demucsCheck.start()
+            updateCheckTimer.start()
         }
     }
 }

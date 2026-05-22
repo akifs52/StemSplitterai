@@ -8,6 +8,7 @@ Rectangle {
 
     property string gpuInfo: "CPU Mode"
     property bool gpuAvailable: false
+    property bool hasUpdate: false
     property int activeTab: 0
 
     signal tabClicked(int index)
@@ -154,6 +155,46 @@ Rectangle {
                     color: ma.containsMouse ? Qt.rgba(1,1,1,0.05) : "transparent"
                     Text { anchors.centerIn: parent; text: modelData; font.family: "Material Symbols Outlined"; color: "#e2e2e2"; font.pixelSize: 16 }
                     MouseArea { id: ma; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor }
+                }
+            }
+
+            // --- Update badge ---
+            Rectangle {
+                id: updateBadge
+                width: 32; height: 32; radius: 8
+                color: updateBadgeMa.containsMouse ? Qt.rgba(0, 0.89, 0.53, 0.12) : "transparent"
+                visible: root.hasUpdate
+                ToolTip.visible: updateBadgeMa.containsMouse
+                ToolTip.text: "Update available"
+                ToolTip.delay: 400
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "\uE923"
+                    font.family: "Material Symbols Outlined"
+                    color: "#00e388"
+                    font.pixelSize: 18
+                }
+
+                Rectangle {
+                    width: 8; height: 8; radius: 4
+                    color: "#00e388"
+                    anchors.top: parent.top; anchors.topMargin: 4
+                    anchors.right: parent.right; anchors.rightMargin: 4
+
+                    SequentialAnimation on opacity {
+                        loops: Animation.Infinite
+                        NumberAnimation { from: 1.0; to: 0.3; duration: 900; easing.type: Easing.InOutSine }
+                        NumberAnimation { from: 0.3; to: 1.0; duration: 900; easing.type: Easing.InOutSine }
+                    }
+                }
+
+                MouseArea {
+                    id: updateBadgeMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.tabClicked(3)
                 }
             }
 

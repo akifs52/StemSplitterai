@@ -39,6 +39,7 @@ a = Analysis(
     datas=[
         ('assets', 'assets'),
         ('qml', 'qml'),
+        ('version.py', '.'),
     ] + numpy_datas + demucs_datas,
     hiddenimports=[
         'backend',
@@ -51,6 +52,7 @@ a = Analysis(
         'backend.splitter',
         'backend.waveform',
         'backend.worker',
+        'backend.update_checker',
         'demucs',
         'demucs.separate',
         'torch',

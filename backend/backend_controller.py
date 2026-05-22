@@ -17,6 +17,8 @@ from backend.database import Database
 from backend.cache_manager import CacheManager
 from backend.waveform import compute_waveform
 from backend.process_utils import ffmpeg_program, run_hidden
+from backend.update_checker import UpdateChecker
+from version import APP_VERSION, LATEST_JSON_URL
 
 
 class HistoryListModel(QAbstractListModel):
@@ -100,6 +102,11 @@ class BackendController(QObject):
     durationChanged = Signal(float)
     allPlayingChanged = Signal()
 
+    # --- Update signals ---
+    updateAvailableChanged = Signal()
+    updateDownloadProgressChanged = Signal()
+    updateStatusChanged = Signal(str)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._splitter = Splitter()
@@ -117,6 +124,23 @@ class BackendController(QObject):
         self._current_file = ""
         self._all_playing = False
         self._log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "sonicsplit.log")
+
+        # --- Update state ---
+        self._update_checker = UpdateChecker(LATEST_JSON_URL, APP_VERSION, self)
+        self._update_available = False
+        self._update_version = ""
+        self._update_notes = ""
+        self._update_url = ""
+        self._update_sha256 = ""
+        self._update_download_progress = 0
+        self._update_downloaded_path = ""
+
+        self._update_checker.updateAvailable.connect(self._on_update_available)
+        self._update_checker.updateNotAvailable.connect(self._on_update_not_available)
+        self._update_checker.updateCheckError.connect(self._on_update_check_error)
+        self._update_checker.downloadProgress.connect(self._on_download_progress)
+        self._update_checker.downloadFinished.connect(self._on_download_finished_update)
+        self._update_checker.downloadError.connect(self._on_download_error)
 
         with open(self._log_path, "a", encoding="utf-8") as f:
             f.write(f"\n=== SonicSplit {datetime.datetime.now().isoformat()} ===\n")
@@ -612,6 +636,92 @@ class BackendController(QObject):
     @Slot()
     def cancelSplit(self):
         self._splitter.cancel()
+
+    # ===== UPDATE SYSTEM =====
+
+    def _get_app_version(self):
+        return APP_VERSION
+
+    appVersion = Property(str, _get_app_version, constant=True)
+
+    def _get_update_available(self):
+        return self._update_available
+
+    updateAvailable = Property(bool, _get_update_available, notify=updateAvailableChanged)
+
+    def _get_update_version(self):
+        return self._update_version
+
+    updateVersion = Property(str, _get_update_version, notify=updateAvailableChanged)
+
+    def _get_update_notes(self):
+        return self._update_notes
+
+    updateNotes = Property(str, _get_update_notes, notify=updateAvailableChanged)
+
+    def _get_update_download_progress(self):
+        return self._update_download_progress
+
+    updateDownloadProgress = Property(int, _get_update_download_progress, notify=updateDownloadProgressChanged)
+
+    @Slot()
+    def checkForUpdates(self):
+        self._log("Checking for updates...")
+        self._update_download_progress = 0
+        self._update_downloaded_path = ""
+        self.updateDownloadProgressChanged.emit()
+        self.updateStatusChanged.emit("checking")
+        self._update_checker.check()
+
+    @Slot()
+    def downloadUpdate(self):
+        if not self._update_url:
+            return
+        self._log(f"Downloading update v{self._update_version}...")
+        self.updateStatusChanged.emit("downloading")
+        self._update_checker.download(self._update_url, self._update_sha256)
+
+    @Slot()
+    def installUpdate(self):
+        self._log("Installing update and restarting...")
+        self._update_checker.installAndRestart()
+
+    def _on_update_available(self, version, notes, url, sha256):
+        self._log(f"Update available: v{version}")
+        self._update_available = True
+        self._update_version = version
+        self._update_notes = notes
+        self._update_url = url
+        self._update_sha256 = sha256
+        self.updateAvailableChanged.emit()
+        self.updateStatusChanged.emit("available")
+
+    def _on_update_not_available(self):
+        self._log("No update available — app is up to date")
+        self._update_available = False
+        self._update_version = ""
+        self._update_notes = ""
+        self.updateAvailableChanged.emit()
+        self.updateStatusChanged.emit("uptodate")
+
+    def _on_update_check_error(self, msg):
+        self._log(f"Update check error: {msg}")
+        self.updateStatusChanged.emit("error")
+
+    def _on_download_progress(self, percent):
+        self._update_download_progress = percent
+        self.updateDownloadProgressChanged.emit()
+
+    def _on_download_finished_update(self, path):
+        self._log(f"Update downloaded: {path}")
+        self._update_downloaded_path = path
+        self.updateStatusChanged.emit("ready")
+
+    def _on_download_error(self, msg):
+        self._log(f"Update download error: {msg}")
+        self._update_download_progress = 0
+        self.updateDownloadProgressChanged.emit()
+        self.updateStatusChanged.emit("error")
 
     def _get_all_playing(self):
         return self._all_playing

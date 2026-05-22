@@ -2,6 +2,8 @@ import os
 import sys
 import signal
 
+from version import APP_VERSION
+
 
 DEMUCS_CLI_ARG = "--stemsplit-demucs"
 
@@ -55,6 +57,7 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("AI Stem Splitter")
     app.setOrganizationName("Akifs52")
+    app.setApplicationVersion(APP_VERSION)
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
     splash, splash_engine = _load_splash(app, base_dir)
