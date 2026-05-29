@@ -1,0 +1,6 @@
+{
+  "permissions": [
+    {"permission": "*", "action": "allow", "pattern": "*"},
+    {"permission": "edit", "action": "allow", "pattern": "D:\\qt\\stemsplitteraiapp\\**"}
+  ]
+}
