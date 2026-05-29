@@ -1,7 +1,7 @@
 {
-  "version": "1.0.0",
-  "url": "https://github.com/akifs52/StemSplitterai/releases/download/v1.0.0/StemSplitAI-Setup-1.0.0.exe",
-  "sha256": "",
-  "notes": "Initial stable release.",
-  "min_version": "0.9.0"
+  "version": "1.0.1",
+  "url": "https://github.com/akifs52/StemSplitterai/releases/download/v1.0.1/StemSplitAI-Setup-1.0.1.exe",
+  "sha256": "c84521c81c44715c63627055aa6030cda732f6d29b516aac4d64ff39a8129361",
+  "notes": "StemSplitAI v1.0.1",
+  "min_version": "1.0.0"
 }

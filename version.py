@@ -1,4 +1,4 @@
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.1"
 APP_NAME = "StemSplitAI"
 APP_PUBLISHER = "Akifs52"
 APP_URL = "https://github.com/akifs52/StemSplitterai"

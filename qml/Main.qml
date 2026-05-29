@@ -463,7 +463,8 @@ ApplicationWindow {
 
                                         Text { text: "Engine Status"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 18; font.weight: Font.DemiBold }
 
-                                        Column { width: parent.width; spacing: 4
+                                        // GPU mode
+                                        Column { width: parent.width; spacing: 4; visible: backend ? backend.gpuAvailable : false
                                             Item { width: parent.width; height: 14
                                                 Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "GPU LOAD"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 0.8 }
                                                 Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: (backend ? backend.gpuLoad : 0) + "%"; color: "#00e388"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
@@ -473,7 +474,7 @@ ApplicationWindow {
                                             }
                                         }
 
-                                        Column { width: parent.width; spacing: 4
+                                        Column { width: parent.width; spacing: 4; visible: backend ? backend.gpuAvailable : false
                                             Item { width: parent.width; height: 14
                                                 Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "VRAM"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 0.8 }
                                                 Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: (backend ? backend.vramUsed : "0") + " / " + (backend ? backend.vramTotal : "0") + " MB"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
@@ -483,7 +484,28 @@ ApplicationWindow {
                                             }
                                         }
 
-                                        Text { text: backend ? backend.gpuInfo : "Checking..."; color: "#00e388"; font.family: "Inter"; font.pixelSize: 12; font.weight: Font.Medium }
+                                        // CPU mode (when no GPU)
+                                        Column { width: parent.width; spacing: 4; visible: backend ? !backend.gpuAvailable : true
+                                            Item { width: parent.width; height: 14
+                                                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "CPU LOAD"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 0.8 }
+                                                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: (backend ? backend.cpuLoad : 0) + "%"; color: "#FFC857"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
+                                            }
+                                            Rectangle { width: parent.width; height: 4; radius: 2; color: Qt.rgba(1,1,1,0.06)
+                                                Rectangle { width: parent.width * Math.min((backend ? backend.cpuLoad : 0) / 100, 1); height: parent.height; radius: 2; color: "#FFC857" }
+                                            }
+                                        }
+
+                                        Column { width: parent.width; spacing: 4; visible: backend ? !backend.gpuAvailable : true
+                                            Item { width: parent.width; height: 14
+                                                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "RAM"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 0.8 }
+                                                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: (backend ? backend.cpuMemUsed : "0") + " / " + (backend ? backend.cpuMemTotal : "0") + " MB"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
+                                            }
+                                            Rectangle { width: parent.width; height: 4; radius: 2; color: Qt.rgba(1,1,1,0.06)
+                                                Rectangle { width: parent.width * Math.min((backend && backend.cpuMemTotal !== 0 ? backend.cpuMemUsed / backend.cpuMemTotal : 0), 1); height: parent.height; radius: 2; color: Qt.rgba(0.73,0.8,0.73,0.4) }
+                                            }
+                                        }
+
+                                        Text { text: backend ? backend.gpuInfo : "Checking..."; color: backend && backend.gpuAvailable ? "#00e388" : "#FFC857"; font.family: "Inter"; font.pixelSize: 12; font.weight: Font.Medium }
                                     }
                                 }
                             }
@@ -572,7 +594,7 @@ ApplicationWindow {
 
                                 Rectangle {
                                     width: (parent.width - 24) * 0.38
-                                    height: 200
+                                    height: 300
                                     radius: 24
                                     color: Qt.rgba(1, 1, 1, 0.03)
                                     border.color: Qt.rgba(1, 1, 1, 0.08)
@@ -599,6 +621,29 @@ ApplicationWindow {
                                             }
                                             Rectangle { width: parent.width; height: 4; radius: 2; color: Qt.rgba(1,1,1,0.06)
                                                 Rectangle { width: parent.width * Math.min((backend && backend.vramTotal !== "0" ? parseFloat(backend.vramUsed) / parseFloat(backend.vramTotal) : 0), 1); height: parent.height; radius: 2; color: Qt.rgba(0.73,0.8,0.73,0.4) }
+                                            }
+                                        }
+
+                                        // --- CPU section ---
+                                        Item { width: parent.width; height: 1; Rectangle { width: parent.width; height: 1; color: Qt.rgba(1,1,1,0.06) } }
+
+                                        Column { width: parent.width; spacing: 4
+                                            Item { width: parent.width; height: 14
+                                                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "CPU LOAD"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 0.8 }
+                                                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: (backend ? backend.cpuLoad : 0) + "%"; color: "#FFC857"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
+                                            }
+                                            Rectangle { width: parent.width; height: 4; radius: 2; color: Qt.rgba(1,1,1,0.06)
+                                                Rectangle { width: parent.width * Math.min((backend ? backend.cpuLoad : 0) / 100, 1); height: parent.height; radius: 2; color: "#FFC857" }
+                                            }
+                                        }
+
+                                        Column { width: parent.width; spacing: 4
+                                            Item { width: parent.width; height: 14
+                                                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "RAM"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 0.8 }
+                                                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: (backend ? backend.cpuMemUsed : "0") + " / " + (backend ? backend.cpuMemTotal : "0") + " MB"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
+                                            }
+                                            Rectangle { width: parent.width; height: 4; radius: 2; color: Qt.rgba(1,1,1,0.06)
+                                                Rectangle { width: parent.width * Math.min((backend && backend.cpuMemTotal !== 0 ? backend.cpuMemUsed / backend.cpuMemTotal : 0), 1); height: parent.height; radius: 2; color: Qt.rgba(0.73,0.8,0.73,0.4) }
                                             }
                                         }
 
@@ -841,8 +886,8 @@ ApplicationWindow {
 
                             }
                             Row { width: parent.width; spacing: 24
-                                Rectangle { width: (parent.width - 24) * 0.48; height: 200; radius: 24; color: Qt.rgba(1,1,1,0.03); border.color: Qt.rgba(1,1,1,0.08); border.width: 1
-                                    Column { anchors.fill: parent; anchors.margins: 20; spacing: 16
+                                Rectangle { width: (parent.width - 24) * 0.48; height: 310; radius: 24; color: Qt.rgba(1,1,1,0.03); border.color: Qt.rgba(1,1,1,0.08); border.width: 1
+                                    Column { anchors.fill: parent; anchors.margins: 20; spacing: 12
                                         Text { text: "Real-time Telemetry"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 18; font.weight: Font.DemiBold }
                                         Column { width: parent.width; spacing: 6
                                             Item { width: parent.width; height: 14
@@ -862,12 +907,32 @@ ApplicationWindow {
                                                 Rectangle { width: parent.width * Math.min((backend ? backend.gpuLoad : 0) / 100, 1); height: parent.height; radius: 2; color: "#00e388" }
                                             }
                                         }
+                                        // --- CPU section ---
+                                        Item { width: parent.width; height: 1; Rectangle { width: parent.width; height: 1; color: Qt.rgba(1,1,1,0.06) } }
+                                        Column { width: parent.width; spacing: 6
+                                            Item { width: parent.width; height: 14
+                                                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "CPU Load"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 0.8 }
+                                                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: (backend ? backend.cpuLoad : 0) + "%"; color: "#FFC857"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
+                                            }
+                                            Rectangle { width: parent.width; height: 4; radius: 2; color: Qt.rgba(1,1,1,0.06)
+                                                Rectangle { width: parent.width * Math.min((backend ? backend.cpuLoad : 0) / 100, 1); height: parent.height; radius: 2; color: "#FFC857" }
+                                            }
+                                        }
+                                        Column { width: parent.width; spacing: 6
+                                            Item { width: parent.width; height: 14
+                                                Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "RAM Usage"; color: Qt.rgba(0.73,0.8,0.73,0.45); font.family: "Inter"; font.pixelSize: 11; font.letterSpacing: 0.8 }
+                                                Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: (backend ? (backend.cpuMemUsed / 1024).toFixed(1) : "0") + " / " + (backend ? (backend.cpuMemTotal / 1024).toFixed(1) : "0") + " GB"; color: "#e2e2e2"; font.family: "Inter"; font.pixelSize: 11; font.weight: Font.Medium }
+                                            }
+                                            Rectangle { width: parent.width; height: 4; radius: 2; color: Qt.rgba(1,1,1,0.06)
+                                                Rectangle { width: parent.width * Math.min((backend && backend.cpuMemTotal !== 0 ? backend.cpuMemUsed / backend.cpuMemTotal : 0), 1); height: parent.height; radius: 2; color: Qt.rgba(0.73,0.8,0.73,0.4) }
+                                            }
+                                        }
                                     }
                                 }
 
                                 // ===== SOFTWARE UPDATES CARD =====
                                 Rectangle {
-                                    width: (parent.width - 24) * 0.52; height: 200; radius: 24
+                                    width: (parent.width - 24) * 0.48; height: 310; radius: 24
                                     color: Qt.rgba(1,1,1,0.03)
                                     border.color: updateStatus === "available" ? Qt.rgba(0, 0.89, 0.53, 0.25) : Qt.rgba(1,1,1,0.08)
                                     border.width: 1
@@ -981,55 +1046,57 @@ ApplicationWindow {
                                         }
 
                                         // Action buttons row
-                                        Row { spacing: 10
-                                            // Check / Retry button
-                                            Rectangle {
-                                                width: 160; height: 34; radius: 8
-                                                visible: updateStatus !== "downloading" && updateStatus !== "ready"
-                                                color: updateCheckMa.containsMouse ? Qt.rgba(0, 0.89, 0.53, 0.16) : Qt.rgba(0, 0.89, 0.53, 0.08)
-                                                border.color: Qt.rgba(0, 0.89, 0.53, 0.35); border.width: 1
-                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                        Item { width: parent.width; height: 34
+                                            Row { anchors.right: parent.right; spacing: 10
+                                                // Check / Retry button
+                                                Rectangle {
+                                                    width: 160; height: 34; radius: 8
+                                                    visible: updateStatus !== "downloading" && updateStatus !== "ready"
+                                                    color: updateCheckMa.containsMouse ? Qt.rgba(0, 0.89, 0.53, 0.16) : Qt.rgba(0, 0.89, 0.53, 0.08)
+                                                    border.color: Qt.rgba(0, 0.89, 0.53, 0.35); border.width: 1
+                                                    Behavior on color { ColorAnimation { duration: 150 } }
 
-                                                Text {
-                                                    anchors.centerIn: parent
-                                                    text: updateStatus === "checking" ? "Checking..." : "Check for Updates"
-                                                    color: "#00e388"; font.family: "Inter"; font.pixelSize: 12; font.weight: Font.DemiBold
+                                                    Text {
+                                                        anchors.centerIn: parent
+                                                        text: updateStatus === "checking" ? "Checking..." : "Check for Updates"
+                                                        color: "#00e388"; font.family: "Inter"; font.pixelSize: 12; font.weight: Font.DemiBold
+                                                    }
+                                                    MouseArea {
+                                                        id: updateCheckMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                        enabled: updateStatus !== "checking"
+                                                        onClicked: { if (backend) backend.checkForUpdates() }
+                                                    }
                                                 }
-                                                MouseArea {
-                                                    id: updateCheckMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                    enabled: updateStatus !== "checking"
-                                                    onClicked: { if (backend) backend.checkForUpdates() }
+
+                                                // Download button
+                                                Rectangle {
+                                                    width: 160; height: 34; radius: 8
+                                                    visible: updateStatus === "available"
+                                                    color: updateDlMa.containsMouse ? "#14f19b" : "#00e388"
+                                                    Behavior on color { ColorAnimation { duration: 150 } }
+
+                                                    Text { anchors.centerIn: parent; text: "Download Update"; color: "#00391e"; font.family: "Inter"; font.pixelSize: 12; font.weight: Font.Bold }
+                                                    MouseArea {
+                                                        id: updateDlMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                        onClicked: { if (backend) backend.downloadUpdate() }
+                                                    }
                                                 }
-                                            }
 
-                                            // Download button
-                                            Rectangle {
-                                                width: 160; height: 34; radius: 8
-                                                visible: updateStatus === "available"
-                                                color: updateDlMa.containsMouse ? "#14f19b" : "#00e388"
-                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                                // Install & Restart button
+                                                Rectangle {
+                                                    width: 190; height: 34; radius: 8
+                                                    visible: updateStatus === "ready"
+                                                    color: updateInstMa.containsMouse ? "#14f19b" : "#00e388"
+                                                    Behavior on color { ColorAnimation { duration: 150 } }
 
-                                                Text { anchors.centerIn: parent; text: "Download Update"; color: "#00391e"; font.family: "Inter"; font.pixelSize: 12; font.weight: Font.Bold }
-                                                MouseArea {
-                                                    id: updateDlMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                    onClicked: { if (backend) backend.downloadUpdate() }
-                                                }
-                                            }
-
-                                            // Install & Restart button
-                                            Rectangle {
-                                                width: 190; height: 34; radius: 8
-                                                visible: updateStatus === "ready"
-                                                color: updateInstMa.containsMouse ? "#14f19b" : "#00e388"
-                                                Behavior on color { ColorAnimation { duration: 150 } }
-
-                                                Row { anchors.centerIn: parent; spacing: 6
-                                                    Text { text: "\uE923"; font.family: "Material Symbols Outlined"; color: "#00391e"; font.pixelSize: 16; anchors.verticalCenter: parent.verticalCenter }
-                                                    Text { text: "Install & Restart"; color: "#00391e"; font.family: "Inter"; font.pixelSize: 12; font.weight: Font.Bold; anchors.verticalCenter: parent.verticalCenter }
-                                                }
-                                                MouseArea {
-                                                    id: updateInstMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                    onClicked: { if (backend) backend.installUpdate() }
+                                                    Row { anchors.centerIn: parent; spacing: 6
+                                                        Text { text: "\uE923"; font.family: "Material Symbols Outlined"; color: "#00391e"; font.pixelSize: 16; anchors.verticalCenter: parent.verticalCenter }
+                                                        Text { text: "Install & Restart"; color: "#00391e"; font.family: "Inter"; font.pixelSize: 12; font.weight: Font.Bold; anchors.verticalCenter: parent.verticalCenter }
+                                                    }
+                                                    MouseArea {
+                                                        id: updateInstMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                        onClicked: { if (backend) backend.installUpdate() }
+                                                    }
                                                 }
                                             }
                                         }

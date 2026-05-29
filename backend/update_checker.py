@@ -164,11 +164,15 @@ class UpdateChecker(QObject):
         self._check_worker.updateAvailable.connect(self._on_update_available)
         self._check_worker.updateNotAvailable.connect(self.updateNotAvailable.emit)
         self._check_worker.checkError.connect(self.updateCheckError.emit)
-        self._check_worker.finished.connect(self._check_worker.deleteLater)
+        self._check_worker.finished.connect(self._on_check_finished)
         self._check_worker.start()
 
     def _on_update_available(self, version, notes, url, sha256):
         self.updateAvailable.emit(version, notes, url, sha256)
+
+    def _on_check_finished(self):
+        self._check_worker.deleteLater()
+        self._check_worker = None
 
     # --- Download ------------------------------------------------------
 
@@ -182,12 +186,16 @@ class UpdateChecker(QObject):
         self._download_worker.progress.connect(self.downloadProgress.emit)
         self._download_worker.finished.connect(self._on_download_finished)
         self._download_worker.error.connect(self.downloadError.emit)
-        self._download_worker.finished.connect(self._download_worker.deleteLater)
+        self._download_worker.finished.connect(self._on_download_finished_cleanup)
         self._download_worker.start()
 
     def _on_download_finished(self, path: str):
         self._downloaded_path = path
         self.downloadFinished.emit(path)
+
+    def _on_download_finished_cleanup(self):
+        self._download_worker.deleteLater()
+        self._download_worker = None
 
     # --- Install -------------------------------------------------------
 

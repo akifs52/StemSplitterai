@@ -57,6 +57,7 @@ a = Analysis(
         'demucs.separate',
         'torch',
         'torchaudio',
+        'psutil',
     ] + numpy_hidden + demucs_hidden,
     hookspath=[],
     hooksconfig={},

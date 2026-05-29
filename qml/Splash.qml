@@ -217,7 +217,7 @@ Window {
             anchors.bottom: parent.bottom
             anchors.rightMargin: 21
             anchors.bottomMargin: 14
-            text: "VERSION 1.0.0"
+            text: "VERSION 1.0.1"
             color: Qt.rgba(0.73, 0.80, 0.73, 0.40)
             font.family: interSemiBold.name
             font.pixelSize: 6
@@ -227,6 +227,7 @@ Window {
     }
 
     SequentialAnimation on progressValue {
+        id: progressAnim
         running: splash.visible
         NumberAnimation { to: 0.72; duration: 1400; easing.type: Easing.OutCubic }
         NumberAnimation { to: 0.88; duration: 1200; easing.type: Easing.InOutSine }
@@ -236,7 +237,9 @@ Window {
 
     function setStatus(text, value) {
         statusText = text
-        if (value !== undefined)
+        if (value !== undefined) {
+            progressAnim.running = false
             progressValue = value
+        }
     }
 }

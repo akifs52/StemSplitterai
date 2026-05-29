@@ -4,6 +4,7 @@ import datetime
 import json
 import shutil
 import sys
+import psutil
 from PySide6.QtCore import (
     QObject, Signal, Slot, Property, QTimer, QThread,
     QAbstractListModel, Qt, QProcess,
@@ -98,6 +99,7 @@ class BackendController(QObject):
     waveformReady = Signal(str, list)
     stemWaveformReady = Signal(str, list)
     gpuInfoChanged = Signal()
+    cpuInfoChanged = Signal()
     positionChanged = Signal(float)
     durationChanged = Signal(float)
     allPlayingChanged = Signal()
@@ -118,6 +120,9 @@ class BackendController(QObject):
         self._gpu_load = 0
         self._vram_used = "0"
         self._vram_total = "0"
+        self._cpu_load = 0
+        self._cpu_mem_used = 0
+        self._cpu_mem_total = 0
         self._gpu_process = None
         self._history_model = HistoryListModel()
         self._soloed_stems = set()
@@ -158,6 +163,11 @@ class BackendController(QObject):
         self._gpu_monitor.setInterval(5000)
         self._gpu_monitor.timeout.connect(self._poll_gpu_stats)
         self._gpu_monitor.start()
+
+        self._cpu_monitor = QTimer(self)
+        self._cpu_monitor.setInterval(5000)
+        self._cpu_monitor.timeout.connect(self._poll_cpu_stats)
+        self._cpu_monitor.start()
 
         self._load_history()
 
@@ -296,6 +306,31 @@ class BackendController(QObject):
     gpuLoad = Property(int, _get_gpu_load, notify=gpuInfoChanged)
     vramUsed = Property(str, _get_vram_used, notify=gpuInfoChanged)
     vramTotal = Property(str, _get_vram_total, notify=gpuInfoChanged)
+
+    # --- CPU monitoring ---
+
+    def _poll_cpu_stats(self):
+        try:
+            self._cpu_load = int(psutil.cpu_percent(interval=None))
+            mem = psutil.virtual_memory()
+            self._cpu_mem_used = int(mem.used / 1024 / 1024)
+            self._cpu_mem_total = int(mem.total / 1024 / 1024)
+            self.cpuInfoChanged.emit()
+        except Exception:
+            pass
+
+    def _get_cpu_load(self):
+        return self._cpu_load
+
+    def _get_cpu_mem_used(self):
+        return self._cpu_mem_used
+
+    def _get_cpu_mem_total(self):
+        return self._cpu_mem_total
+
+    cpuLoad = Property(int, _get_cpu_load, notify=cpuInfoChanged)
+    cpuMemUsed = Property(int, _get_cpu_mem_used, notify=cpuInfoChanged)
+    cpuMemTotal = Property(int, _get_cpu_mem_total, notify=cpuInfoChanged)
 
     def _get_selected_model(self):
         return self._splitter.selectedModel
