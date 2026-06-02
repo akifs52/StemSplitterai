@@ -51,8 +51,11 @@ def valid(model, valid_loader, args, config, device, verbose=False):
         folder = os.path.dirname(path)
         res = demix(config, model, mix.T, device, model_type=args.model_type) # mix.T
         for instr in instruments:
+            stem_path = folder + '/{}.wav'.format(instr)
+            if not os.path.isfile(stem_path):
+                stem_path = folder + '/{}.flac'.format(instr)
             if instr != 'other' or config.training.other_fix is False:
-                track, sr1 = sf.read(folder + '/{}.wav'.format(instr))
+                track, sr1 = sf.read(stem_path)
             else:
                 # other is actually instrumental
                 track, sr1 = sf.read(folder + '/{}.wav'.format('vocals'))
@@ -75,6 +78,8 @@ class MSSValidationDataset(torch.utils.data.Dataset):
         all_mixtures_path = []
         for valid_path in args.valid_path:
             part = sorted(glob.glob(valid_path + '/*/mixture.wav'))
+            if len(part) == 0:
+                part = sorted(glob.glob(valid_path + '/*/mixture.flac'))
             if len(part) == 0:
                 print('No validation data found in: {}'.format(valid_path))
             all_mixtures_path += part
@@ -107,6 +112,8 @@ def train_model(args):
     parser.add_argument("--use_multistft_loss", action='store_true', help="Use MultiSTFT Loss (from auraloss package)")
     parser.add_argument("--use_mse_loss", action='store_true', help="Use default MSE loss")
     parser.add_argument("--use_l1_loss", action='store_true', help="Use L1 loss")
+    parser.add_argument("--resume_from_checkpoint", type=str, default='', help="Resume training from checkpoint directory (full state: model, optimizer, scheduler, epoch)")
+    parser.add_argument("--valid_every", type=int, default=1, help="Run validation every N epochs (default=1). Use >1 to speed up training with large validation sets.")
     parser.add_argument("--wandb_key", type=str, default='', help='wandb API Key')
     parser.add_argument("--pre_valid", action='store_true', help='Run validation before training')
     if args is None:
@@ -167,8 +174,20 @@ def train_model(args):
 
     valid_loader = accelerator.prepare(valid_loader)
 
+    if args.start_check_point != '' and args.resume_from_checkpoint != '':
+        accelerator.print('ERROR: Cannot use --start_check_point and --resume_from_checkpoint together')
+        exit()
+
+    if args.resume_from_checkpoint != '':
+        accelerator.print('Resume from checkpoint: {}'.format(args.resume_from_checkpoint))
+        if not os.path.isdir(args.resume_from_checkpoint):
+            accelerator.print('ERROR: Checkpoint directory not found: {}'.format(args.resume_from_checkpoint))
+            exit()
+
+    start_epoch = 0
+    best_sdr = -100
     if args.start_check_point != '':
-        accelerator.print('Start from checkpoint: {}'.format(args.start_check_point))
+        accelerator.print('Load checkpoint weights: {}'.format(args.start_check_point))
         if 1:
             load_not_compatible_weights(model, args.start_check_point, verbose=False)
         else:
@@ -233,11 +252,28 @@ def train_model(args):
 
     model, optimizer, train_loader, scheduler = accelerator.prepare(model, optimizer, train_loader, scheduler)
 
+    if args.resume_from_checkpoint != '':
+        accelerator.load_state(args.resume_from_checkpoint)
+        resume_path = os.path.join(args.resume_from_checkpoint, 'resume.pt')
+        if os.path.isfile(resume_path):
+            resume_state = torch.load(resume_path, map_location='cpu')
+            start_epoch = resume_state.get('epoch', 0)
+            best_sdr = resume_state.get('best_sdr', -100)
+            accelerator.print('Resumed at epoch {} (best SDR: {:.4f})'.format(start_epoch, best_sdr))
+
     ema_model = None
     if hasattr(config.training, 'ema_momentum') and config.training.ema_momentum > 0:
         accelerator.print(f"Initializing EMA with decay: {config.training.ema_momentum}")
         ema_model = AveragedModel(accelerator.unwrap_model(model), multi_avg_fn=get_ema_multi_avg_fn(config.training.ema_momentum))
         ema_model.to(device)
+        if args.resume_from_checkpoint != '' and os.path.isfile(os.path.join(args.resume_from_checkpoint, 'resume.pt')):
+            resume_state = torch.load(os.path.join(args.resume_from_checkpoint, 'resume.pt'), map_location='cpu')
+            if 'ema' in resume_state:
+                try:
+                    ema_model.load_state_dict(resume_state['ema'])
+                    accelerator.print('EMA model restored from checkpoint')
+                except Exception as e:
+                    accelerator.print('Could not load EMA state: {}'.format(e))
     
     if args.pre_valid:
         model_to_valid = ema_model if ema_model is not None else model
@@ -264,9 +300,8 @@ def train_model(args):
             accelerator.print('SDR Avg: {:.4f}'.format(sdr_avg))
         sdr_list = None
 
-    accelerator.print('Train for: {}'.format(config.training.num_epochs))
-    best_sdr = -100
-    for epoch in range(config.training.num_epochs):
+    accelerator.print('Train for: {} epochs (starting from epoch {})'.format(config.training.num_epochs, start_epoch))
+    for epoch in range(start_epoch, config.training.num_epochs):
         model.train().to(device)
         accelerator.print('Train epoch: {} Learning rate: {}'.format(epoch, optimizer.param_groups[0]['lr']))
         loss_val = 0.
@@ -334,46 +369,64 @@ def train_model(args):
                 unwrapped_model = accelerator.unwrap_model(model)
                 accelerator.save(unwrapped_model.state_dict(), store_path)
 
-        # Validation
-        model_to_valid = ema_model if ema_model is not None else model
-        sdr_list = valid(model_to_valid, valid_loader, args, config, device, verbose=accelerator.is_main_process)
-        sdr_list = accelerator.gather(sdr_list)
-        accelerator.wait_for_everyone()
-
-        sdr_avg = 0.0
-        instruments = prefer_target_instrument(config)
-
-        for instr in instruments:
-            if accelerator.is_main_process and 0:
-                print(sdr_list[instr])
-            sdr_data = torch.cat(sdr_list[instr], dim=0).cpu().numpy()
-            # sdr_val = sdr_data.mean()
-            sdr_val = sdr_data[:valid_dataset_length].mean()
-            if accelerator.is_main_process:
-                print("Instr SDR {}: {:.4f} Debug: {}".format(instr, sdr_val, len(sdr_data)))
-                wandb.log({ f'{instr}_sdr': sdr_val })
-            sdr_avg += sdr_val
-        sdr_avg /= len(instruments)
-        if len(instruments) > 1:
-            if accelerator.is_main_process:
-                print('SDR Avg: {:.4f}'.format(sdr_avg))
-                wandb.log({'sdr_avg': sdr_avg, 'best_sdr': best_sdr})
-
+        # Save full state for resume (every epoch)
         if accelerator.is_main_process:
-            if sdr_avg > best_sdr:
-                store_path = args.results_path + '/model_{}_ep_{}_sdr_{:.4f}.ckpt'.format(args.model_type, epoch, sdr_avg)
-                print('Store weights: {}'.format(store_path))
-                if ema_model is not None:
-                    accelerator.save(ema_model.module.state_dict(), store_path)
-                else:
-                    unwrapped_model = accelerator.unwrap_model(model)
-                    accelerator.save(unwrapped_model.state_dict(), store_path)
-                best_sdr = sdr_avg
+            checkpoint_dir = os.path.join(args.results_path, 'checkpoint')
+            os.makedirs(checkpoint_dir, exist_ok=True)
+            accelerator.save_state(checkpoint_dir)
+            resume_state = {
+                'epoch': epoch + 1,
+                'best_sdr': best_sdr,
+            }
+            if ema_model is not None:
+                unwrapped_ema = accelerator.unwrap_model(ema_model)
+                resume_state['ema'] = unwrapped_ema.state_dict()
+            torch.save(resume_state, os.path.join(checkpoint_dir, 'resume.pt'))
 
-            scheduler.step(sdr_avg)
+        # Run validation every valid_every epochs
+        if (epoch % args.valid_every) == 0 or epoch == config.training.num_epochs - 1:
+            model_to_valid = ema_model if ema_model is not None else model
+            sdr_list = valid(model_to_valid, valid_loader, args, config, device, verbose=accelerator.is_main_process)
+            sdr_list = accelerator.gather(sdr_list)
+            accelerator.wait_for_everyone()
 
-        sdr_list = None
-        accelerator.wait_for_everyone()
+            sdr_avg = 0.0
+            instruments = prefer_target_instrument(config)
+
+            for instr in instruments:
+                if accelerator.is_main_process and 0:
+                    print(sdr_list[instr])
+                sdr_data = torch.cat(sdr_list[instr], dim=0).cpu().numpy()
+                # sdr_val = sdr_data.mean()
+                sdr_val = sdr_data[:valid_dataset_length].mean()
+                if accelerator.is_main_process:
+                    print("Instr SDR {}: {:.4f} Debug: {}".format(instr, sdr_val, len(sdr_data)))
+                    wandb.log({ f'{instr}_sdr': sdr_val })
+                sdr_avg += sdr_val
+            sdr_avg /= len(instruments)
+            if len(instruments) > 1:
+                if accelerator.is_main_process:
+                    print('SDR Avg: {:.4f}'.format(sdr_avg))
+                    wandb.log({'sdr_avg': sdr_avg, 'best_sdr': best_sdr})
+
+            if accelerator.is_main_process:
+                if sdr_avg > best_sdr:
+                    store_path = args.results_path + '/model_{}_ep_{}_sdr_{:.4f}.ckpt'.format(args.model_type, epoch, sdr_avg)
+                    print('Store weights: {}'.format(store_path))
+                    if ema_model is not None:
+                        accelerator.save(ema_model.module.state_dict(), store_path)
+                    else:
+                        unwrapped_model = accelerator.unwrap_model(model)
+                        accelerator.save(unwrapped_model.state_dict(), store_path)
+                    best_sdr = sdr_avg
+
+                scheduler.step(sdr_avg)
+
+            sdr_list = None
+            accelerator.wait_for_everyone()
+        else:
+            if accelerator.is_main_process:
+                print('(validation skipped, will run at epoch {})'.format(((epoch // args.valid_every) + 1) * args.valid_every))
 
 
 if __name__ == "__main__":

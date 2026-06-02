@@ -169,6 +169,8 @@ def main():
     parser.add_argument('--device', default='cuda' if torch.cuda.is_available() else 'cpu')
     parser.add_argument('--valid_ratio', type=float, default=0.1)
     parser.add_argument('--max_songs', type=int, default=3, help='0=all')
+    parser.add_argument('--song_prefix', default='song', help='Prefix for song directory names')
+    parser.add_argument('--start_index', type=int, default=0, help='Starting index for song numbering')
     args = parser.parse_args()
     
     os.makedirs(args.dataset_root, exist_ok=True)
@@ -193,7 +195,7 @@ def main():
     
     results = []
     for i, (url, desc) in enumerate(tqdm(urls, desc='Overall')):
-        song_name = f'song_{i:03d}'
+        song_name = f'{args.song_prefix}_{args.start_index + i:03d}'
         print(f'\n[{i+1}/{len(urls)}] {desc}')
         
         try:

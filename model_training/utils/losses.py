@@ -387,6 +387,10 @@ def choice_loss(
                                            * args.spec_masked_loss_coef
         )
 
+    if 'pro_loss' in args.loss:
+        from .losses_pro import choice_loss_pro
+        return choice_loss_pro(config)
+
     def multi_loss(y_pred: Any, y_true: Any, x: Optional[Any] = None) -> torch.Tensor:
         total = 0
         for fn in loss_fns:
