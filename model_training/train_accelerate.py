@@ -1,6 +1,6 @@
 # coding: utf-8
 __author__ = 'Roman Solovyev (ZFTurbo): https://github.com/ZFTurbo/'
-__version__ = '1.0.3'
+__version__ = '1.1.0'
 
 # Read more here:
 # https://huggingface.co/docs/accelerate/index
@@ -27,7 +27,7 @@ from utils.dataset import MSSDataset
 from utils.model_utils import demix, prefer_target_instrument, load_not_compatible_weights
 from utils.metrics import sdr
 from utils.settings import manual_seed, get_model_from_config
-from utils.losses import masked_loss
+from utils.losses import masked_loss, choice_loss
 import warnings
 
 warnings.filterwarnings("ignore")
@@ -112,6 +112,25 @@ def train_model(args):
     parser.add_argument("--use_multistft_loss", action='store_true', help="Use MultiSTFT Loss (from auraloss package)")
     parser.add_argument("--use_mse_loss", action='store_true', help="Use default MSE loss")
     parser.add_argument("--use_l1_loss", action='store_true', help="Use L1 loss")
+    parser.add_argument("--use_standard_loss", action='store_true',
+                        help="For roformer/conformer models: use external loss instead of internal multi-STFT loss")
+    parser.add_argument("--loss", type=str, nargs='+',
+                        choices=['masked_loss', 'mse_loss', 'l1_loss', 'multistft_loss',
+                                 'spec_masked_loss', 'spec_rmse_loss', 'log_wmse_loss',
+                                 'l1_snr_loss', 'l1_snr_db_loss', 'stft_l1_snr_db_loss',
+                                 'multi_l1_snr_db_loss', 'pro_loss'],
+                        default=['masked_loss'], help="List of loss functions (used with --use_standard_loss)")
+    parser.add_argument("--masked_loss_coef", type=float, default=1., help="Coef for masked_loss")
+    parser.add_argument("--mse_loss_coef", type=float, default=1., help="Coef for mse_loss")
+    parser.add_argument("--l1_loss_coef", type=float, default=1., help="Coef for l1_loss")
+    parser.add_argument("--multistft_loss_coef", type=float, default=0.001, help="Coef for multistft_loss")
+    parser.add_argument("--log_wmse_loss_coef", type=float, default=1., help="Coef for log_wmse_loss")
+    parser.add_argument("--spec_masked_loss_coef", type=float, default=1., help="Coef for spec_masked_loss")
+    parser.add_argument("--spec_rmse_loss_coef", type=float, default=1., help="Coef for spec_rmse_loss")
+    parser.add_argument("--l1_snr_loss_coef", type=float, default=1., help="Coef for l1_snr_loss")
+    parser.add_argument("--l1_snr_db_loss_coef", type=float, default=1., help="Coef for l1_snr_db_loss")
+    parser.add_argument("--stft_l1_snr_db_loss_coef", type=float, default=1., help="Coef for stft_l1_snr_db_loss")
+    parser.add_argument("--multi_l1_snr_db_loss_coef", type=float, default=1., help="Coef for multi_l1_snr_db_loss")
     parser.add_argument("--resume_from_checkpoint", type=str, default='', help="Resume training from checkpoint directory (full state: model, optimizer, scheduler, epoch)")
     parser.add_argument("--valid_every", type=int, default=1, help="Run validation every N epochs (default=1). Use >1 to speed up training with large validation sets.")
     parser.add_argument("--wandb_key", type=str, default='', help='wandb API Key')
@@ -223,24 +242,63 @@ def train_model(args):
         accelerator.print('Unknown optimizer: {}'.format(config.training.optimizer))
         exit()
 
+    gradient_accumulation_steps = int(getattr(config.training, 'gradient_accumulation_steps', 1))
+
     if accelerator.is_main_process:
         print('Processes GPU: {}'.format(accelerator.num_processes))
-        print("Patience: {} Reduce factor: {} Batch size: {} Optimizer: {}".format(
+        print("Patience: {} Reduce factor: {} Batch size: {} Grad accum: {} Effective batch: {} Optimizer: {}".format(
             config.training.patience,
             config.training.reduce_factor,
             batch_size,
+            gradient_accumulation_steps,
+            batch_size * gradient_accumulation_steps,
             config.training.optimizer,
         ))
-    # Reduce LR if no SDR improvements for several epochs
-    scheduler = ReduceLROnPlateau(
-        optimizer,
-        'max',
-        # patience=accelerator.num_processes * config.training.patience, # This is strange place...
-        patience=config.training.patience,
-        factor=config.training.reduce_factor
-    )
 
-    if args.use_multistft_loss:
+    # Scheduler selection from config
+    scheduler_name = getattr(config.training, 'scheduler', 'ReduceLROnPlateau')
+    if scheduler_name == 'cosine':
+        from transformers import get_cosine_schedule_with_warmup
+        num_training_steps = config.training.num_epochs * config.training.num_steps
+        num_warmup_steps = int(getattr(config.training, 'num_warmup_steps', 0))
+        scheduler = get_cosine_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=num_warmup_steps,
+            num_training_steps=num_training_steps
+        )
+        accelerator.print('Using cosine scheduler: {} warmup steps, {} total steps'.format(
+            num_warmup_steps, num_training_steps))
+    elif scheduler_name == 'linear_scheduler':
+        from transformers import get_linear_schedule_with_warmup
+        num_training_steps = config.training.num_epochs * config.training.num_steps
+        num_warmup_steps = int(getattr(config.training, 'num_warmup_steps', 0))
+        scheduler = get_linear_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=num_warmup_steps,
+            num_training_steps=num_training_steps
+        )
+        accelerator.print('Using linear scheduler: {} warmup steps, {} total steps'.format(
+            num_warmup_steps, num_training_steps))
+    else:
+        # Default: ReduceLROnPlateau
+        scheduler = ReduceLROnPlateau(
+            optimizer,
+            'max',
+            patience=config.training.patience,
+            factor=config.training.reduce_factor
+        )
+        accelerator.print('Using ReduceLROnPlateau scheduler')
+
+    # Build loss function
+    use_internal_loss = (
+        args.model_type in ['mel_band_roformer', 'bs_roformer', 'bs_mamba2', 'mel_band_conformer', 'bs_conformer']
+        and not args.use_standard_loss
+    )
+    multi_loss = None
+    if args.use_standard_loss:
+        multi_loss = choice_loss(args, config)
+        accelerator.print('Using standard loss: {}'.format(args.loss))
+    elif args.use_multistft_loss:
         try:
             loss_options = dict(config.loss_multistft)
         except:
@@ -249,6 +307,8 @@ def train_model(args):
         loss_multistft = auraloss.freq.MultiResolutionSTFTLoss(
             **loss_options
         )
+    if use_internal_loss:
+        accelerator.print('Using internal model loss (multi-STFT from roformer)')
 
     model, optimizer, train_loader, scheduler = accelerator.prepare(model, optimizer, train_loader, scheduler)
 
@@ -256,7 +316,7 @@ def train_model(args):
         accelerator.load_state(args.resume_from_checkpoint)
         resume_path = os.path.join(args.resume_from_checkpoint, 'resume.pt')
         if os.path.isfile(resume_path):
-            resume_state = torch.load(resume_path, map_location='cpu')
+            resume_state = torch.load(resume_path, map_location='cpu', weights_only=False)
             start_epoch = resume_state.get('epoch', 0)
             best_sdr = resume_state.get('best_sdr', -100)
             accelerator.print('Resumed at epoch {} (best SDR: {:.4f})'.format(start_epoch, best_sdr))
@@ -267,7 +327,7 @@ def train_model(args):
         ema_model = AveragedModel(accelerator.unwrap_model(model), multi_avg_fn=get_ema_multi_avg_fn(config.training.ema_momentum))
         ema_model.to(device)
         if args.resume_from_checkpoint != '' and os.path.isfile(os.path.join(args.resume_from_checkpoint, 'resume.pt')):
-            resume_state = torch.load(os.path.join(args.resume_from_checkpoint, 'resume.pt'), map_location='cpu')
+            resume_state = torch.load(os.path.join(args.resume_from_checkpoint, 'resume.pt'), map_location='cpu', weights_only=False)
             if 'ema' in resume_state:
                 try:
                     ema_model.load_state_dict(resume_state['ema'])
@@ -301,9 +361,10 @@ def train_model(args):
         sdr_list = None
 
     accelerator.print('Train for: {} epochs (starting from epoch {})'.format(config.training.num_epochs, start_epoch))
+    accelerator.print('Gradient accumulation steps: {}'.format(gradient_accumulation_steps))
     for epoch in range(start_epoch, config.training.num_epochs):
         model.train().to(device)
-        accelerator.print('Train epoch: {} Learning rate: {}'.format(epoch, optimizer.param_groups[0]['lr']))
+        accelerator.print('Train epoch: {} Learning rate: {:.2e}'.format(epoch, optimizer.param_groups[0]['lr']))
         loss_val = 0.
         total = 0
 
@@ -312,16 +373,19 @@ def train_model(args):
             y = batch
             x = mixes
 
-            if args.model_type in ['mel_band_roformer', 'bs_roformer', 'bs_mamba2', 'mel_band_conformer', 'bs_conformer']:
-                # loss is computed in forward pass
+            if use_internal_loss:
+                # loss is computed in forward pass (internal multi-STFT)
                 loss = model(x, y)
+            elif multi_loss is not None:
+                # Standard loss from --loss argument
+                y_ = model(x)
+                loss = multi_loss(y_, y, x)
             else:
                 y_ = model(x)
                 if args.use_multistft_loss:
                     y1_ = torch.reshape(y_, (y_.shape[0], y_.shape[1] * y_.shape[2], y_.shape[3]))
                     y1 = torch.reshape(y, (y.shape[0], y.shape[1] * y.shape[2], y.shape[3]))
                     loss = loss_multistft(y1_, y1)
-                    # We can use many losses at the same time
                     if args.use_mse_loss:
                         loss += 1000 * nn.MSELoss()(y1_, y1)
                     if args.use_l1_loss:
@@ -338,26 +402,35 @@ def train_model(args):
                         coarse=config.training.coarse_loss_clip
                     )
 
+            # Gradient accumulation: scale loss and accumulate
+            loss = loss / gradient_accumulation_steps
             accelerator.backward(loss)
-            if config.training.grad_clip:
-                accelerator.clip_grad_norm_(model.parameters(), config.training.grad_clip)
 
-            optimizer.step()
-            optimizer.zero_grad()
+            if ((i + 1) % gradient_accumulation_steps == 0) or (i == len(train_loader) - 1):
+                if config.training.grad_clip:
+                    accelerator.clip_grad_norm_(model.parameters(), config.training.grad_clip)
 
-            if ema_model is not None:
-                ema_model.update_parameters(accelerator.unwrap_model(model))
-            
-            li = loss.item()
+                optimizer.step()
+
+                # Step-level schedulers (cosine, linear)
+                if scheduler_name in ['cosine', 'linear_scheduler']:
+                    scheduler.step()
+
+                optimizer.zero_grad()
+
+                if ema_model is not None:
+                    ema_model.update_parameters(accelerator.unwrap_model(model))
+
+            li = loss.item() * gradient_accumulation_steps  # report unscaled loss
             loss_val += li
             total += 1
             if accelerator.is_main_process:
-                wandb.log({'loss': 100 * li, 'avg_loss': 100 * loss_val / (i + 1), 'total': total, 'loss_val': loss_val, 'i': i })
-                pbar.set_postfix({'loss': 100 * li, 'avg_loss': 100 * loss_val / (i + 1)})
+                wandb.log({'loss': 100 * li, 'avg_loss': 100 * loss_val / (i + 1), 'total': total, 'loss_val': loss_val, 'i': i})
+                pbar.set_postfix({'loss': 100 * li, 'avg_loss': 100 * loss_val / (i + 1), 'lr': optimizer.param_groups[0]['lr']})
 
         if accelerator.is_main_process:
-            print('Training loss: {:.6f}'.format(loss_val / total))
-            wandb.log({'train_loss': loss_val / total, 'epoch': epoch})
+            print('Training loss: {:.6f} | LR: {:.2e}'.format(loss_val / total, optimizer.param_groups[0]['lr']))
+            wandb.log({'train_loss': loss_val / total, 'epoch': epoch, 'learning_rate': optimizer.param_groups[0]['lr']})
 
         # Save last
         store_path = args.results_path + '/last_{}.ckpt'.format(args.model_type)
@@ -411,6 +484,9 @@ def train_model(args):
 
             if accelerator.is_main_process:
                 if sdr_avg > best_sdr:
+                    # Remove old best checkpoints to save space
+                    for old_ckpt in glob.glob(args.results_path + '/model_*.ckpt'):
+                        os.remove(old_ckpt)
                     store_path = args.results_path + '/model_{}_ep_{}_sdr_{:.4f}.ckpt'.format(args.model_type, epoch, sdr_avg)
                     print('Store weights: {}'.format(store_path))
                     if ema_model is not None:
@@ -419,8 +495,10 @@ def train_model(args):
                         unwrapped_model = accelerator.unwrap_model(model)
                         accelerator.save(unwrapped_model.state_dict(), store_path)
                     best_sdr = sdr_avg
-
-                scheduler.step(sdr_avg)
+                
+                # Only ReduceLROnPlateau uses validation metric to step
+                if scheduler_name == 'ReduceLROnPlateau':
+                    scheduler.step(sdr_avg)
 
             sdr_list = None
             accelerator.wait_for_everyone()
