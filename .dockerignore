@@ -9,6 +9,8 @@ __pycache__
 build
 dist
 venv
+node_modules
+frontend/node_modules
 .env
 uploads
 separated
