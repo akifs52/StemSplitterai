@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
     tags: ["v*"]
   pull_request:
 
@@ -97,7 +97,7 @@ jobs:
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             echo "tags=${IMAGE}:${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           else
-            echo "tags=${IMAGE}:main" >> "$GITHUB_OUTPUT"
+            echo "tags=${IMAGE}:${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build and push
