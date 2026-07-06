@@ -8,6 +8,8 @@ build/
 *.egg
 venv/
 .env
+node_modules/
+frontend/node_modules/
 
 # Qt / QML
 *.qmlc
@@ -16,10 +18,12 @@ venv/
 # Project runtime
 separated/
 uploads/
+storage/
 sonicsplit.log
 stemsplitter.db
 splitter.db
 web_app.*.log
+.pytest_cache/
 dataset/
 *.ckpt
 

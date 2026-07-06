@@ -32,18 +32,7 @@ python main.py
 
 ## Web App
 
-Run the FastAPI web version locally:
-
-```bash
-pip install -r requirements-web.txt
-python -m uvicorn web_app:app --host 127.0.0.1 --port 8000
-```
-
-Open `http://127.0.0.1:8000`.
-
-## Docker Web App
-
-Build and run the web app with Docker:
+Run the full SaaS web stack locally with Docker Compose:
 
 ```bash
 docker compose up --build
@@ -51,9 +40,118 @@ docker compose up --build
 
 Open `http://127.0.0.1:8000`.
 
-The compose file mounts `uploads/` and `separated/` so uploaded files and generated stems persist on the host.
+The web UI is a React + TypeScript + Vite PWA. Source lives in `frontend/`, and production build output is written to `web/static/` so FastAPI can serve it from the same origin.
+
+Frontend development commands:
+
+```bash
+cd frontend
+npm ci
+npm run typecheck
+npm run build
+npm run dev
+```
+
+The PWA caches the app shell, fonts, icons, and static JS/CSS bundles. API calls and audio downloads are intentionally network-only so job progress and secured stem files do not become stale.
+
+## Docker Web App
+
+Build and run the SaaS web app with Docker:
+
+```bash
+docker compose up --build
+```
+
+Open `http://127.0.0.1:8000`.
+
+The compose stack starts the API, worker, PostgreSQL, MongoDB, Redis, and MinIO. The API runs Alembic migrations at startup and the worker consumes Redis/RQ jobs for Demucs processing.
+
+Local MinIO console is available at `http://127.0.0.1:9001` with:
+
+```text
+user: stemsplit
+password: stemsplit-secret
+```
+
+## SaaS API
+
+The SaaS REST API lives under `/api/v1`:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"demo@example.com\",\"password\":\"very-secret-password\",\"organization_name\":\"Demo Studio\"}"
+```
+
+Use the returned bearer token for job endpoints:
+
+```bash
+curl http://127.0.0.1:8000/api/v1/jobs \
+  -H "Authorization: Bearer <token>"
+```
+
+Core services:
+
+- PostgreSQL: users, organizations, plans, quota, jobs, artifacts, API tokens
+- MongoDB: job events, worker logs, waveform metadata
+- Redis/RQ: long-running separation job queue
+- MinIO/S3: uploaded audio and generated stems
+
+Legacy `/api/jobs` and `/api/system` routes remain available in non-production mode so the existing web UI can still run locally. Set `STEM_LEGACY_COMPAT_ENABLED=false` in production.
+
+## OAuth Login
+
+Google and Apple login buttons are shown on the auth screen. They become active when the matching provider environment variables are configured.
+
+Google:
+
+```bash
+STEM_PUBLIC_BASE_URL=https://your-domain.example
+STEM_GOOGLE_CLIENT_ID=...
+STEM_GOOGLE_CLIENT_SECRET=...
+```
+
+Google redirect URI:
+
+```text
+https://your-domain.example/api/v1/auth/oauth/google/callback
+```
+
+Apple:
+
+```bash
+STEM_PUBLIC_BASE_URL=https://your-domain.example
+STEM_APPLE_CLIENT_ID=...
+STEM_APPLE_TEAM_ID=...
+STEM_APPLE_KEY_ID=...
+STEM_APPLE_PRIVATE_KEY_PATH=/run/secrets/apple-auth-key.p8
+```
+
+You can use `STEM_APPLE_PRIVATE_KEY` instead of `STEM_APPLE_PRIVATE_KEY_PATH`; replace newlines with `\n` when storing it in a single environment variable.
+
+Apple redirect URI:
+
+```text
+https://your-domain.example/api/v1/auth/oauth/apple/callback
+```
+
+OAuth callback returns the app token in a URL fragment and the React app stores it in `localStorage`. Provider id tokens are verified server-side before user creation or account linking.
+
+Run migrations manually:
+
+```bash
+alembic upgrade head
+```
+
+Run API tests:
+
+```bash
+python -m pytest -q tests/test_saas_api.py
+```
 
 ## Project Structure
+
+SaaS additions live in `saas/`, frontend source in `frontend/`, PostgreSQL migrations in `alembic/`, API tests in `tests/`, and CI/CD in `.github/workflows/`.
 
 ```
 ├── backend/
