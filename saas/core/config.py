@@ -41,16 +41,47 @@ class Settings:
         self.environment = os.getenv("STEM_ENV", "development")
         self.api_version = os.getenv("STEM_API_VERSION", "v1")
 
-        self.database_url = os.getenv(
-            "STEM_DATABASE_URL",
-            "postgresql+psycopg://stemsplit:stemsplit@postgres:5432/stemsplit",
+        # Database URL resolution with cloud provider support (Render, Heroku, Supabase, Neon)
+        raw_db_url = (
+            os.getenv("STEM_DATABASE_URL")
+            or os.getenv("DATABASE_URL")
+            or os.getenv("POSTGRES_URL")
         )
-        self.mongo_uri = os.getenv("STEM_MONGO_URI", "mongodb://mongo:27017")
-        self.mongo_database = os.getenv("STEM_MONGO_DATABASE", "stemsplit")
-        self.mongo_backend = os.getenv("STEM_MONGO_BACKEND", "mongo")
+        if raw_db_url:
+            raw_db_url = raw_db_url.strip()
+            # Normalize Render / Supabase postgres:// or postgresql:// to postgresql+psycopg://
+            if raw_db_url.startswith("postgres://"):
+                raw_db_url = raw_db_url.replace("postgres://", "postgresql+psycopg://", 1)
+            elif raw_db_url.startswith("postgresql://") and not raw_db_url.startswith("postgresql+"):
+                raw_db_url = raw_db_url.replace("postgresql://", "postgresql+psycopg://", 1)
+            self.database_url = raw_db_url
+        else:
+            # Fallback to local SQLite if no cloud database is attached yet
+            sqlite_path = Path(os.getenv("STEM_SQLITE_PATH", str(BASE_DIR / "stemsplitter.db"))).resolve()
+            self.database_url = f"sqlite+pysqlite:///{sqlite_path.as_posix()}"
 
-        self.redis_url = os.getenv("STEM_REDIS_URL", "redis://redis:6379/0")
-        self.queue_backend = os.getenv("STEM_QUEUE_BACKEND", "rq")
+        # MongoDB & Event store resolution
+        raw_mongo = (
+            os.getenv("STEM_MONGO_URI")
+            or os.getenv("MONGODB_URI")
+            or os.getenv("MONGO_URL")
+        )
+        if raw_mongo:
+            self.mongo_uri = raw_mongo.strip()
+            self.mongo_backend = os.getenv("STEM_MONGO_BACKEND", "mongo")
+        else:
+            self.mongo_uri = ""
+            self.mongo_backend = os.getenv("STEM_MONGO_BACKEND", "memory")
+        self.mongo_database = os.getenv("STEM_MONGO_DATABASE", "stemsplit")
+
+        # Redis & Queue resolution
+        raw_redis = os.getenv("STEM_REDIS_URL") or os.getenv("REDIS_URL")
+        if raw_redis:
+            self.redis_url = raw_redis.strip()
+            self.queue_backend = os.getenv("STEM_QUEUE_BACKEND", "rq")
+        else:
+            self.redis_url = ""
+            self.queue_backend = os.getenv("STEM_QUEUE_BACKEND", "inline")
         self.rq_queue_name = os.getenv("STEM_RQ_QUEUE", "stemsplit-jobs")
 
         self.storage_backend = os.getenv("STEM_STORAGE_BACKEND", "local")
