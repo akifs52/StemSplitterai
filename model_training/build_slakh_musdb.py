@@ -52,17 +52,14 @@ def process_track(track_dir, track_name, split):
         rms = np.sqrt(np.mean(data**2))
         stems_audio[stem_name] = (data, rms)
     
-    if not stems_audio:
+    if len(stems_audio) < 2:
         return False
     
     # Assign lead = highest RMS, rhythm = sum of rest
     sorted_stems = sorted(stems_audio.items(), key=lambda x: -x[1][1])
     lead_name, (lead_data, _) = sorted_stems[0]
     
-    if len(sorted_stems) == 1:
-        rhythm_data = np.zeros_like(lead_data)
-    else:
-        rhythm_data = sum(data for name, (data, _) in sorted_stems[1:])
+    rhythm_data = sum(data for name, (data, _) in sorted_stems[1:])
     
     # Normalize to prevent clipping (match mix peak)
     max_peak = max(np.abs(mix).max(), np.abs(lead_data).max(), np.abs(rhythm_data).max())
@@ -80,7 +77,9 @@ def process_track(track_dir, track_name, split):
     out_dir = os.path.join(out_base, track_name)
     os.makedirs(out_dir, exist_ok=True)
     
-    sf.write(os.path.join(out_dir, 'mixture.flac'), mix_stereo.T, sr)
+    guitar_mix_stereo = lead_stereo + rhythm_stereo
+
+    sf.write(os.path.join(out_dir, 'mixture.flac'), guitar_mix_stereo.T, sr)
     sf.write(os.path.join(out_dir, 'lead_guitar.flac'), lead_stereo.T, sr)
     sf.write(os.path.join(out_dir, 'rhythm_guitar.flac'), rhythm_stereo.T, sr)
     

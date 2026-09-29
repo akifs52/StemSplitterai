@@ -6,6 +6,28 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parents[2]
 
 
+def _load_env_file() -> None:
+    env_file = BASE_DIR / ".env"
+    if not env_file.is_file():
+        return
+    try:
+        with open(env_file, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                k = k.strip()
+                v = v.strip().strip("'\"")
+                if k and k not in os.environ:
+                    os.environ[k] = v
+    except Exception:
+        pass
+
+
+_load_env_file()
+
+
 def _env_bool(name: str, default: bool) -> bool:
     raw = os.getenv(name)
     if raw is None:

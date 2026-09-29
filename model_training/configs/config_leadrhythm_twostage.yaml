@@ -9,8 +9,8 @@ audio:
   min_mean_abs: 0.001
 
 model:
-  dim: 128
-  depth: 4
+  dim: 192
+  depth: 5
   stereo: true
   num_stems: 2
   time_transformer_depth: 1
@@ -28,7 +28,7 @@ model:
   stft_hop_length: 512
   stft_win_length: 2048
   stft_normalized: False
-  mask_estimator_depth: 2
+  mask_estimator_depth: 3
   multi_stft_resolution_loss_weight: 1.0
   multi_stft_resolutions_window_sizes: !!python/tuple
     - 4096
@@ -45,16 +45,16 @@ model:
 
 training:
   batch_size: 1
-  gradient_accumulation_steps: 4
+  gradient_accumulation_steps: 8
   grad_clip: 0.5
   instruments:
     - lead_guitar
     - rhythm_guitar
-  lr: 5.0e-05
-  patience: 15
+  lr: 4.0e-05
+  patience: 20
   reduce_factor: 0.9
   target_instrument: null
-  num_epochs: 200
+  num_epochs: 300
   num_steps: 1000
   q: 0.95
   coarse_loss_clip: false
@@ -62,7 +62,7 @@ training:
   optimizer: adamw
   weight_decay: 0.01
   scheduler: cosine
-  num_warmup_steps: 500
+  num_warmup_steps: 1000
   other_fix: false
   use_amp: true
 

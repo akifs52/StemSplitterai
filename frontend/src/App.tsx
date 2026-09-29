@@ -1,8 +1,12 @@
 import {
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   CircleAlert,
   Cpu,
   Download,
+  FileAudio,
+  Folder,
   HardDriveDownload,
   History,
   Loader2,
@@ -10,10 +14,12 @@ import {
   Music2,
   Pause,
   Play,
+  RefreshCw,
   Settings,
   SlidersHorizontal,
   UploadCloud,
   UserRound,
+  Volume2,
   WifiOff,
   X
 } from "lucide-react";
@@ -115,6 +121,436 @@ function statusLabel(job?: Job | null): string {
     return "Cancelled";
   }
   return popupText(job.stage);
+}
+
+function WaveformIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg className={`wave-badge-icon ${className}`} width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <rect x="2" y="8" width="3.5" height="8" rx="1.75" fill="#00FFA3" />
+      <rect x="8.5" y="3" width="3.5" height="18" rx="1.75" fill="#00FFA3" />
+      <rect x="15" y="6" width="3.5" height="12" rx="1.75" fill="#00FFA3" />
+      <rect x="21.5" y="9.5" width="2.5" height="5" rx="1.25" fill="#00FFA3" />
+    </svg>
+  );
+}
+
+function PanelWavesBg() {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let animId: number;
+    let isVisible = true;
+    const handleVis = () => {
+      isVisible = !document.hidden;
+    };
+    document.addEventListener("visibilitychange", handleVis);
+
+    let width = 0;
+    let height = 0;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      width = rect.width;
+      height = rect.height;
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+    };
+    resize();
+
+    const observer = new ResizeObserver(resize);
+    observer.observe(canvas);
+
+    const render = (time: number) => {
+      if (isVisible && width > 0 && height > 0) {
+        ctx.save();
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, width, height);
+
+        const baseline = height * 0.68;
+        const t = time * 0.001;
+
+        // Wave 1: Back wave with glowing gradient fill
+        ctx.beginPath();
+        ctx.moveTo(0, height);
+        for (let x = 0; x <= width; x += 4) {
+          const y =
+            baseline +
+            8 +
+            Math.sin(x * 0.0035 + t * 1.3) * 16 +
+            Math.sin(x * 0.0075 - t * 1.8) * 10 +
+            Math.cos(x * 0.014 + t * 2.4) * 6;
+          ctx.lineTo(x, y);
+        }
+        ctx.lineTo(width, height);
+        ctx.closePath();
+
+        const grad = ctx.createLinearGradient(0, baseline - 25, 0, height);
+        grad.addColorStop(0, "rgba(0, 255, 163, 0.28)");
+        grad.addColorStop(0.5, "rgba(0, 227, 136, 0.09)");
+        grad.addColorStop(1, "rgba(0, 255, 163, 0.0)");
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        ctx.strokeStyle = "rgba(0, 255, 163, 0.35)";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+
+        // Wave 2: Middle echo wave
+        ctx.beginPath();
+        for (let x = 0; x <= width; x += 4) {
+          const y =
+            baseline +
+            Math.sin(x * 0.0042 + t * 1.6 + 1.5) * 20 +
+            Math.cos(x * 0.0091 - t * 2.1 + 0.8) * 13 +
+            Math.sin(x * 0.017 + t * 3.0) * 7;
+          if (x === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = "rgba(0, 255, 163, 0.55)";
+        ctx.lineWidth = 1.4;
+        ctx.shadowColor = "#00FFA3";
+        ctx.shadowBlur = 6;
+        ctx.stroke();
+
+        // Wave 3: Front primary neon ribbon with strong glow
+        ctx.beginPath();
+        for (let x = 0; x <= width; x += 4) {
+          const y =
+            baseline -
+            8 +
+            Math.sin(x * 0.0049 - t * 1.7) * 24 +
+            Math.sin(x * 0.0105 + t * 2.3 + 2.3) * 14 +
+            Math.cos(x * 0.019 - t * 3.3) * 8;
+          if (x === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = "#00FFA3";
+        ctx.lineWidth = 2.2;
+        ctx.shadowColor = "#00FFA3";
+        ctx.shadowBlur = 14;
+        ctx.stroke();
+
+        // Wave 4: Delicate ethereal ripple
+        ctx.beginPath();
+        for (let x = 0; x <= width; x += 6) {
+          const y =
+            baseline -
+            16 +
+            Math.sin(x * 0.0031 + t * 0.9) * 18 +
+            Math.cos(x * 0.0083 + t * 2.0 + 1.1) * 10;
+          if (x === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = "rgba(0, 255, 163, 0.25)";
+        ctx.lineWidth = 1.0;
+        ctx.shadowBlur = 0;
+        ctx.stroke();
+
+        ctx.restore();
+      }
+      animId = requestAnimationFrame(render);
+    };
+
+    animId = requestAnimationFrame(render);
+
+    return () => {
+      cancelAnimationFrame(animId);
+      observer.disconnect();
+      document.removeEventListener("visibilitychange", handleVis);
+    };
+  }, []);
+
+  return <canvas ref={canvasRef} className="panel-waves-bg" />;
+}
+
+function CornerWaveBg() {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const seed = useRef(Math.random() * 500 + 100);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let animId: number;
+    let isVisible = true;
+    const handleVis = () => {
+      isVisible = !document.hidden;
+    };
+    document.addEventListener("visibilitychange", handleVis);
+
+    let width = 0;
+    let height = 0;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      width = rect.width;
+      height = rect.height;
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+    };
+    resize();
+
+    const observer = new ResizeObserver(resize);
+    observer.observe(canvas);
+
+    const s = seed.current;
+
+    const render = (time: number) => {
+      if (isVisible && width > 0 && height > 0) {
+        ctx.save();
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, width, height);
+
+        const t = (time + s * 100) * 0.001;
+
+        // Primary curve points with organic drift
+        const startX = width * 0.15 + Math.sin(t * 1.3) * 12;
+        const startY = height;
+        const cp1X = width * 0.35 + Math.cos(t * 1.7) * 16;
+        const cp1Y = height * 0.42 + Math.sin(t * 2.1) * 14;
+        const cp2X = width * 0.65 + Math.sin(t * 1.5 + 1.2) * 18;
+        const cp2Y = height * 0.85 + Math.cos(t * 2.3 + 0.8) * 12;
+        const endX = width;
+        const endY = height * 0.36 + Math.sin(t * 1.6 + 2.0) * 14;
+
+        // Gradient fill under primary ribbon
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, endX, endY);
+        ctx.lineTo(width, height);
+        ctx.closePath();
+
+        const grad = ctx.createLinearGradient(0, height, width, 0);
+        grad.addColorStop(0, "rgba(0, 255, 163, 0.4)");
+        grad.addColorStop(0.6, "rgba(0, 227, 136, 0.12)");
+        grad.addColorStop(1, "rgba(0, 255, 163, 0.0)");
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        // Primary ribbon stroke with neon glow
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, endX, endY);
+        ctx.strokeStyle = "#00FFA3";
+        ctx.lineWidth = 2.0;
+        ctx.shadowColor = "#00FFA3";
+        ctx.shadowBlur = 10;
+        ctx.stroke();
+
+        // Secondary echo ribbon
+        const eStartX = width * 0.3 + Math.sin(t * 1.1 + 0.5) * 10;
+        const eCp1X = width * 0.48 + Math.cos(t * 1.4 + 1.0) * 14;
+        const eCp1Y = height * 0.6 + Math.sin(t * 1.8 + 0.4) * 12;
+        const eCp2X = width * 0.72 + Math.sin(t * 1.6 + 2.0) * 14;
+        const eCp2Y = height * 0.88 + Math.cos(t * 1.9 + 1.2) * 10;
+        const eEndY = height * 0.55 + Math.sin(t * 1.4 + 1.5) * 12;
+
+        ctx.beginPath();
+        ctx.moveTo(eStartX, height);
+        ctx.bezierCurveTo(eCp1X, eCp1Y, eCp2X, eCp2Y, width, eEndY);
+        ctx.strokeStyle = "rgba(0, 255, 163, 0.45)";
+        ctx.lineWidth = 1.2;
+        ctx.shadowBlur = 4;
+        ctx.stroke();
+
+        // Tertiary faint ripple
+        const tStartX = width * 0.45 + Math.sin(t * 0.9 + 1.2) * 8;
+        const tCp1X = width * 0.6 + Math.cos(t * 1.2) * 10;
+        const tCp1Y = height * 0.75 + Math.sin(t * 1.5) * 8;
+        const tEndY = height * 0.72 + Math.sin(t * 1.2 + 0.8) * 8;
+
+        ctx.beginPath();
+        ctx.moveTo(tStartX, height);
+        ctx.bezierCurveTo(tCp1X, tCp1Y, width * 0.85, height * 0.92, width, tEndY);
+        ctx.strokeStyle = "rgba(0, 255, 163, 0.25)";
+        ctx.lineWidth = 0.8;
+        ctx.shadowBlur = 0;
+        ctx.stroke();
+
+        ctx.restore();
+      }
+      animId = requestAnimationFrame(render);
+    };
+
+    animId = requestAnimationFrame(render);
+
+    return () => {
+      cancelAnimationFrame(animId);
+      observer.disconnect();
+      document.removeEventListener("visibilitychange", handleVis);
+    };
+  }, []);
+
+  return <canvas ref={canvasRef} className="panel-corner-waves" />;
+}
+
+function PlayerCenterWaves({ playing = false }: { playing?: boolean }) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let animId: number;
+    let isVisible = true;
+    const handleVis = () => {
+      isVisible = !document.hidden;
+    };
+    document.addEventListener("visibilitychange", handleVis);
+
+    let width = 0;
+    let height = 0;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      width = rect.width;
+      height = rect.height;
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+    };
+    resize();
+
+    const observer = new ResizeObserver(resize);
+    observer.observe(canvas);
+
+    const render = (time: number) => {
+      if (isVisible && width > 0 && height > 0) {
+        ctx.save();
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, width, height);
+
+        const speedMul = playing ? 2.1 : 1.15;
+        const ampMul = playing ? 1.4 : 0.95;
+        const t = time * 0.001 * speedMul;
+        const centerX = width / 2;
+        const baseline = height * 0.58;
+
+        const points: { x: number; y1: number; y2: number; y3: number; fade: number }[] = [];
+        const step = 3;
+
+        for (let x = 0; x <= width; x += step) {
+          const distFromCenter = Math.abs(x - centerX);
+          // Directly behind the play button (~40px radius), dim smoothly
+          let centerFade = 1.0;
+          if (distFromCenter < 46) {
+            centerFade = 0.22 + 0.78 * Math.pow(distFromCenter / 46, 1.4);
+          }
+
+          // Edge taper (soft fade at ends)
+          const edgeDist = Math.min(x, width - x);
+          const edgeFade = edgeDist < 32 ? edgeDist / 32 : 1.0;
+          const totalFade = centerFade * edgeFade;
+
+          // Wave harmonics continuously running left-to-right
+          const phase = x * 0.032 - t * 2.6;
+          const y1 =
+            baseline +
+            Math.sin(phase) * (7.5 * ampMul) +
+            Math.cos(phase * 1.6 + t * 1.2) * (4 * ampMul);
+
+          const y2 =
+            baseline +
+            5 +
+            Math.sin(phase * 0.85 - t * 1.5 + 1.2) * (5.5 * ampMul) +
+            Math.cos(phase * 1.8 + t * 0.9) * (2.8 * ampMul);
+
+          const y3 =
+            baseline +
+            10 +
+            Math.sin(phase * 0.7 + t * 1.1 + 2.4) * (4 * ampMul);
+
+          points.push({ x, y1, y2, y3, fade: totalFade });
+        }
+
+        // Translucent gradient fill beneath Wave 1
+        ctx.beginPath();
+        ctx.moveTo(0, height);
+        points.forEach((p) => ctx.lineTo(p.x, p.y1));
+        ctx.lineTo(width, height);
+        ctx.closePath();
+
+        const fillGrad = ctx.createLinearGradient(0, baseline - 15, 0, height);
+        fillGrad.addColorStop(0, "rgba(0, 255, 163, 0.16)");
+        fillGrad.addColorStop(1, "rgba(0, 255, 163, 0.0)");
+        ctx.fillStyle = fillGrad;
+        ctx.fill();
+
+        // Continuous Wave 1 stroke with dimmed center behind play button
+        for (let i = 0; i < points.length - 1; i++) {
+          const p1 = points[i];
+          const p2 = points[i + 1];
+          const avgFade = (p1.fade + p2.fade) / 2;
+
+          ctx.beginPath();
+          ctx.moveTo(p1.x, p1.y1);
+          ctx.lineTo(p2.x, p2.y1);
+
+          ctx.strokeStyle = `rgba(0, 255, 163, ${0.9 * avgFade})`;
+          ctx.lineWidth = 2.2;
+          ctx.shadowColor = "#00FFA3";
+          ctx.shadowBlur = 10 * avgFade;
+          ctx.stroke();
+        }
+
+        // Continuous Wave 2 stroke (Echo)
+        for (let i = 0; i < points.length - 1; i++) {
+          const p1 = points[i];
+          const p2 = points[i + 1];
+          const avgFade = (p1.fade + p2.fade) / 2;
+
+          ctx.beginPath();
+          ctx.moveTo(p1.x, p1.y2);
+          ctx.lineTo(p2.x, p2.y2);
+
+          ctx.strokeStyle = `rgba(0, 255, 163, ${0.45 * avgFade})`;
+          ctx.lineWidth = 1.3;
+          ctx.shadowBlur = 4 * avgFade;
+          ctx.stroke();
+        }
+
+        // Continuous Wave 3 stroke (Tertiary faint)
+        for (let i = 0; i < points.length - 1; i += 2) {
+          const p1 = points[i];
+          const p2 = points[Math.min(i + 2, points.length - 1)];
+          const avgFade = (p1.fade + p2.fade) / 2;
+
+          ctx.beginPath();
+          ctx.moveTo(p1.x, p1.y3);
+          ctx.lineTo(p2.x, p2.y3);
+
+          ctx.strokeStyle = `rgba(0, 255, 163, ${0.25 * avgFade})`;
+          ctx.lineWidth = 0.9;
+          ctx.shadowBlur = 0;
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
+      animId = requestAnimationFrame(render);
+    };
+
+    animId = requestAnimationFrame(render);
+
+    return () => {
+      cancelAnimationFrame(animId);
+      observer.disconnect();
+      document.removeEventListener("visibilitychange", handleVis);
+    };
+  }, [playing]);
+
+  return <canvas ref={canvasRef} className="player-continuous-wave" />;
 }
 
 function WaveCanvas({
@@ -245,7 +681,12 @@ export function App() {
       try {
         const rows = await api.listJobs(authToken);
         setJobs(rows);
-        setCurrentJob((previous) => previous || rows[0] || null);
+        setCurrentJob((previous) => {
+          if (!previous) {
+            return null;
+          }
+          return rows.find((item) => item.id === previous.id) || null;
+        });
       } catch (error) {
         handleUnauthorized(error);
       }
@@ -397,13 +838,21 @@ export function App() {
     }
     let frame = 0;
     const sync = () => {
-      const players = Object.values(audioRefs.current).filter(Boolean) as HTMLAudioElement[];
+      const players = Object.values(audioRefs.current).filter(
+        (p): p is HTMLAudioElement => Boolean(p && typeof p.duration === "number")
+      );
       const primary = players[0];
-      if (primary) {
+      if (primary && Number.isFinite(primary.currentTime)) {
         setPosition(primary.currentTime || 0);
-        setDuration(Math.max(...players.map((player) => player.duration || 0), 0));
+        const maxDur = Math.max(
+          ...players.map((p) => (p && Number.isFinite(p.duration) ? p.duration : 0)),
+          0
+        );
+        if (maxDur > 0) {
+          setDuration(maxDur);
+        }
         players.forEach((player) => {
-          if (player !== primary && !player.paused && Number.isFinite(player.duration)) {
+          if (player && player !== primary && !player.paused && Number.isFinite(player.duration)) {
             if (Math.abs((player.currentTime || 0) - (primary.currentTime || 0)) > 0.14) {
               player.currentTime = Math.min(primary.currentTime || 0, player.duration || primary.currentTime || 0);
             }
@@ -515,7 +964,10 @@ export function App() {
   };
 
   const seekAll = (event: PointerEvent<HTMLDivElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
+    const rect = event.currentTarget?.getBoundingClientRect();
+    if (!rect || rect.width <= 0) {
+      return;
+    }
     const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
     const target = ratio * duration;
     Object.values(audioRefs.current).forEach((player) => {
@@ -561,6 +1013,7 @@ export function App() {
     return (
       <main className="boot-screen">
         <section className="splash-card" aria-label="Loading StemSplit AI">
+          <CornerWaveBg />
           <div className="splash-mark">
             <img src="/static/pwa-192.png" alt="" />
           </div>
@@ -580,6 +1033,7 @@ export function App() {
     return (
       <main className="auth-page">
         <section className="auth-panel">
+          <CornerWaveBg />
           <div>
             <div className="brand-lockup">
               <Music2 size={26} />
@@ -702,7 +1156,7 @@ export function App() {
       <section className={`view ${view === "dashboard" ? "active" : ""}`}>
         <div className="section-title">
           <h1>Source Separation</h1>
-          <p>{organization.name} workspace</p>
+          <p>{organization?.name || "Workspace"} workspace</p>
         </div>
         <div className="dashboard-grid">
           <label
@@ -717,20 +1171,37 @@ export function App() {
             }}
           >
             <input type="file" accept="audio/*" onChange={(event) => event.target.files?.[0] && uploadFile(event.target.files[0])} />
-            {uploading ? <Loader2 className="spin upload-icon" size={42} /> : <UploadCloud className="upload-icon" size={42} />}
-            <strong>{uploading ? "Uploading..." : "Drop or choose audio"}</strong>
-            <small>MP3, WAV, FLAC, M4A, OGG</small>
+            <PanelWavesBg />
+            <div className="upload-circle">
+              {uploading ? <Loader2 className="spin upload-icon" size={34} /> : <UploadCloud className="upload-icon" size={34} />}
+            </div>
+            <strong className="drop-title">
+              Drop or <span className="highlight-green">choose audio</span>
+            </strong>
+            <small className="drop-sub">MP3, WAV, FLAC, M4A, OGG</small>
+            <div className="browse-files-pill">
+              <Folder size={15} />
+              <span>Browse Files</span>
+              <ChevronRight size={14} />
+            </div>
           </label>
 
           <aside className="job-panel">
+            <CornerWaveBg />
             <div className="panel-head">
-              <strong>Current Job</strong>
-              <span>{currentJob ? `${currentJob.progress || 0}%` : "idle"}</span>
+              <strong>
+                <WaveformIcon />
+                <span>Current Job</span>
+              </strong>
+              <span className={`status-pill ${currentJob?.status || "idle"}`}>
+                <span className="pulse-dot" />
+                {currentJob ? (currentJob.status === "running" ? `${currentJob.progress || 0}%` : currentJob.status) : "Idle"}
+              </span>
             </div>
             <div className="status-card">
               <div className={`status-dot ${currentJob?.status || "idle"}`} />
               <div>
-                <strong>{statusLabel(currentJob)}</strong>
+                <strong>{currentJob ? statusLabel(currentJob) : "No active job"}</strong>
                 <small>{currentJob?.source_filename || "Upload a file to start."}</small>
               </div>
             </div>
@@ -749,38 +1220,57 @@ export function App() {
 
         <div className="wave-panel">
           <div className="panel-head">
-            <strong>Original Waveform</strong>
-            <span>{currentJob?.source_filename || "No source loaded"}</span>
+            <strong>
+              <WaveformIcon />
+              <span>Original Waveform</span>
+            </strong>
+            <div className="source-pill">
+              <FileAudio size={14} />
+              <span>{currentJob?.source_filename || "No source loaded"}</span>
+              <ChevronDown size={14} />
+            </div>
           </div>
-          <WaveCanvas data={currentJob?.waveform || []} color="#00e388" position={playbackRatio} className="original-wave" />
+          <div className="wave-wrapper">
+            <WaveCanvas data={currentJob?.waveform || []} color="#00FFA3" position={playbackRatio} className="original-wave" />
+            {(!currentJob || !currentJob.waveform || currentJob.waveform.length === 0) && (
+              <div className="wave-empty-overlay">
+                <div className="wave-center-line" />
+                <span className="wave-empty-text">No file loaded</span>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="history-panel">
           <div className="panel-head">
             <strong>
-              <History size={16} />
-              Job History
+              <History size={17} className="emerald-icon" />
+              <span>Job History</span>
             </strong>
-            <button className="text-btn compact" onClick={() => refreshJobs()}>
-              Refresh
+            <button className="refresh-pill-btn" onClick={() => refreshJobs()} type="button">
+              <RefreshCw size={13} />
+              <span>Refresh</span>
             </button>
           </div>
-          <div className="job-list">
-            {jobs.map((job) => (
-              <button
-                key={job.id}
-                className={`job-row ${currentJob?.id === job.id ? "selected" : ""}`}
-                onClick={() => loadJob(job.id, job.status === "done")}
-              >
-                <span>
-                  <strong>{job.source_filename}</strong>
-                  <small>{formatBytes(job.source_size_bytes)} · {job.model}</small>
-                </span>
-                <span className={`job-status ${job.status}`}>{job.status}</span>
-              </button>
-            ))}
-            {!jobs.length && <p className="muted-copy">No jobs yet.</p>}
-          </div>
+          {jobs.length === 0 ? (
+            <div className="history-empty">No jobs yet.</div>
+          ) : (
+            <div className="job-list">
+              {jobs.map((job) => (
+                <button
+                  key={job.id}
+                  className={`job-row ${currentJob?.id === job.id ? "selected" : ""}`}
+                  onClick={() => loadJob(job.id, job.status === "done")}
+                >
+                  <span>
+                    <strong>{job.source_filename}</strong>
+                    <small>{formatBytes(job.source_size_bytes)} · {job.model}</small>
+                  </span>
+                  <span className={`job-status ${job.status}`}>{job.status}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -817,9 +1307,13 @@ export function App() {
                       <span>GAIN</span>
                       <input
                         type="range"
+                        className="neon-slider"
                         min="0"
                         max="100"
-                        value={(stemVolumes[stem.name] ?? 1) * 100}
+                        value={Math.round((stemVolumes[stem.name] ?? 1) * 100)}
+                        style={{
+                          background: `linear-gradient(to right, ${color} 0%, ${color} ${Math.round((stemVolumes[stem.name] ?? 1) * 100)}%, rgba(255, 255, 255, 0.12) ${Math.round((stemVolumes[stem.name] ?? 1) * 100)}%, rgba(255, 255, 255, 0.12) 100%)`
+                        }}
                         onChange={(event) =>
                           setStemVolumes((previous) => ({
                             ...previous,
@@ -850,10 +1344,17 @@ export function App() {
                     }}
                     src={src}
                     preload="auto"
-                    onLoadedMetadata={(event) => setDuration((value) => Math.max(value, event.currentTarget.duration || 0))}
+                    onLoadedMetadata={(event) => {
+                      const dur = event.currentTarget?.duration;
+                      if (typeof dur === "number" && Number.isFinite(dur) && dur > 0) {
+                        setDuration((prev) => Math.max(prev, dur));
+                      }
+                    }}
                     onEnded={() => {
-                      const players = Object.values(audioRefs.current).filter(Boolean) as HTMLAudioElement[];
-                      if (players.every((player) => player.paused || player.ended)) {
+                      const players = Object.values(audioRefs.current).filter(
+                        (p): p is HTMLAudioElement => Boolean(p)
+                      );
+                      if (players.length > 0 && players.every((player) => Boolean(player.paused || player.ended))) {
                         setPlaying(false);
                       }
                     }}
@@ -863,8 +1364,12 @@ export function App() {
             })
           ) : (
             <div className="empty-state">
-              <CircleAlert size={24} />
-              <span>Select a completed job from the dashboard.</span>
+              <CornerWaveBg />
+              <div className="upload-circle" style={{ width: "56px", height: "56px", marginBottom: "0" }}>
+                <SlidersHorizontal size={24} className="emerald-icon" />
+              </div>
+              <strong style={{ fontSize: "16px", color: "#f1f7f3" }}>No Stem Track Selected</strong>
+              <span>Select a completed job from the dashboard to launch the multi-track stem mixer.</span>
             </div>
           )}
         </div>
@@ -877,22 +1382,30 @@ export function App() {
         </div>
         <div className="settings-grid">
           <div className="panel">
-            <h2>Workspace</h2>
+            <CornerWaveBg />
+            <h2>
+              <WaveformIcon />
+              <span>Workspace</span>
+            </h2>
             <div className="engine-card active-gpu">
               <CheckCircle2 size={18} />
-              {organization.name}
+              {organization?.name || "Workspace"}
             </div>
             <div className="engine-card">
               <UserRound size={18} />
-              {user.email}
+              {user?.email || "User"}
             </div>
             <div className="engine-card">
               <HardDriveDownload size={18} />
-              {organization.plan?.name || "Free"} · {organization.plan?.monthly_job_limit ?? 0} jobs/month
+              {organization?.plan?.name || "Free"} · {organization?.plan?.monthly_job_limit ?? 0} jobs/month
             </div>
           </div>
           <div className="panel">
-            <h2>Acceleration Engine</h2>
+            <CornerWaveBg />
+            <h2>
+              <Cpu size={18} className="emerald-icon" />
+              <span>Acceleration Engine</span>
+            </h2>
             <div className={`engine-card ${system?.gpu ? "active-gpu" : ""}`}>
               <Cpu size={18} />
               {system?.gpu ? "NVIDIA CUDA (GPU)" : "CPU Mode"}
@@ -903,7 +1416,11 @@ export function App() {
             </div>
           </div>
           <div className="panel">
-            <h2>Demucs Configuration</h2>
+            <CornerWaveBg />
+            <h2>
+              <Settings size={18} className="emerald-icon" />
+              <span>Demucs Configuration</span>
+            </h2>
             <label className="control-field">
               <span>Model</span>
               <select value={model} onChange={(event) => setModel(event.target.value)}>
@@ -917,19 +1434,50 @@ export function App() {
               <span>
                 Segment <b>{segment}s</b>
               </span>
-              <input type="range" min="1" max="30" value={segment} onChange={(event) => setSegment(Number(event.target.value))} />
+              <input
+                type="range"
+                className="neon-slider"
+                min="1"
+                max="30"
+                value={segment}
+                style={{
+                  background: `linear-gradient(to right, #00FFA3 0%, #00FFA3 ${Math.round(((segment - 1) / 29) * 100)}%, rgba(255, 255, 255, 0.12) ${Math.round(((segment - 1) / 29) * 100)}%, rgba(255, 255, 255, 0.12) 100%)`
+                }}
+                onChange={(event) => setSegment(Number(event.target.value))}
+              />
             </label>
             <label className="control-field slider-field">
               <span>
                 Overlap <b>{overlap.toFixed(2)}</b>
               </span>
-              <input type="range" min="0.1" max="0.9" step="0.05" value={overlap} onChange={(event) => setOverlap(Number(event.target.value))} />
+              <input
+                type="range"
+                className="neon-slider"
+                min="0.1"
+                max="0.9"
+                step="0.05"
+                value={overlap}
+                style={{
+                  background: `linear-gradient(to right, #00FFA3 0%, #00FFA3 ${Math.round(((overlap - 0.1) / 0.8) * 100)}%, rgba(255, 255, 255, 0.12) ${Math.round(((overlap - 0.1) / 0.8) * 100)}%, rgba(255, 255, 255, 0.12) 100%)`
+                }}
+                onChange={(event) => setOverlap(Number(event.target.value))}
+              />
             </label>
             <label className="control-field slider-field">
               <span>
                 Shifts <b>{shifts}x</b>
               </span>
-              <input type="range" min="1" max="4" value={shifts} onChange={(event) => setShifts(Number(event.target.value))} />
+              <input
+                type="range"
+                className="neon-slider"
+                min="1"
+                max="4"
+                value={shifts}
+                style={{
+                  background: `linear-gradient(to right, #00FFA3 0%, #00FFA3 ${Math.round(((shifts - 1) / 3) * 100)}%, rgba(255, 255, 255, 0.12) ${Math.round(((shifts - 1) / 3) * 100)}%, rgba(255, 255, 255, 0.12) 100%)`
+                }}
+                onChange={(event) => setShifts(Number(event.target.value))}
+              />
             </label>
           </div>
         </div>
@@ -944,19 +1492,41 @@ export function App() {
           <span className="time-label current">{formatTime(position)}</span>
           <span className="time-label duration">{formatTime(duration)}</span>
         </div>
-        <span id="activeStem">{activeStemLabel}</span>
-        <button id="playBtn" className={playing ? "playing" : ""} onClick={togglePlayback} title={playing ? "Pause" : "Play"}>
-          {playing ? <Pause size={25} fill="currentColor" /> : <Play size={25} fill="currentColor" />}
-        </button>
-        <label className="master">
-          <span className="master-label">
-            Master <b>{Math.round(masterVolume * 100)}%</b>
+
+        <div className="player-left-side">
+          <span className="player-status-badge">
+            <span className="status-live-dot" />
+            <span className="status-live-text">{playing ? activeStemLabel : "Ready"}</span>
           </span>
-          <span className="master-control">
-            <SlidersHorizontal size={18} />
-            <input type="range" min="0" max="100" value={masterVolume * 100} onChange={(event) => setMasterVolume(Number(event.target.value) / 100)} />
-          </span>
-        </label>
+        </div>
+
+        <div className="player-center-wrap">
+          <PlayerCenterWaves playing={playing} />
+          <button id="playBtn" className={playing ? "playing" : ""} onClick={togglePlayback} title={playing ? "Pause" : "Play"}>
+            {playing ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" style={{ marginLeft: "3px" }} />}
+          </button>
+        </div>
+
+        <div className="player-right-side">
+          <div className="master-volume-box">
+            <Volume2 size={18} className="vol-icon" />
+            <span className="vol-label">Master</span>
+            <div className="volume-slider-wrap">
+              <input
+                type="range"
+                className="neon-slider"
+                min="0"
+                max="100"
+                value={Math.round(masterVolume * 100)}
+                style={{
+                  background: `linear-gradient(to right, #00FFA3 0%, #00FFA3 ${Math.round(masterVolume * 100)}%, rgba(255, 255, 255, 0.12) ${Math.round(masterVolume * 100)}%, rgba(255, 255, 255, 0.12) 100%)`
+                }}
+                onChange={(event) => setMasterVolume(Number(event.target.value) / 100)}
+              />
+            </div>
+            <span className="vol-pct">{Math.round(masterVolume * 100)}%</span>
+          </div>
+        </div>
       </footer>
     </main>
   );

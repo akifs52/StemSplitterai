@@ -133,5 +133,76 @@ export const api = {
       throw new ApiError(response.status, response.statusText || "Could not download stem");
     }
     return response.blob();
+  },
+
+  /* RESTful Page APIs */
+  dashboard: {
+    async getOverview(token: string) {
+      return request<any>("/dashboard/overview", token);
+    },
+    async quickUpload(token: string, file: File, settings: { model: string; segment: number; overlap: number; shifts: number }) {
+      const data = new FormData();
+      data.append("file", file);
+      data.append("model", settings.model);
+      data.append("segment", String(settings.segment));
+      data.append("overlap", String(settings.overlap));
+      data.append("shifts", String(settings.shifts));
+      return request<any>("/dashboard/upload", token, {
+        method: "POST",
+        body: data
+      });
+    }
+  },
+
+  mixer: {
+    async getTrack(token: string, jobId: string) {
+      return request<any>(`/mixer/${encodeURIComponent(jobId)}`, token);
+    },
+    async saveState(token: string, jobId: string, state: Record<string, any>) {
+      return request<any>(`/mixer/${encodeURIComponent(jobId)}/state`, token, {
+        method: "PUT",
+        body: JSON.stringify(state)
+      });
+    },
+    async getStems(token: string, jobId: string) {
+      return request<any[]>(`/mixer/${encodeURIComponent(jobId)}/stems`, token);
+    }
+  },
+
+  settings: {
+    async get(token: string) {
+      return request<any>("/settings", token);
+    },
+    async update(token: string, preferences: Record<string, any>) {
+      return request<any>("/settings", token, {
+        method: "PUT",
+        body: JSON.stringify(preferences)
+      });
+    },
+    async getEngines() {
+      return request<any>("/settings/engines", "");
+    }
+  },
+
+  history: {
+    async list(token: string, page = 1, pageSize = 20, search = "", status = "") {
+      const params = new URLSearchParams({
+        page: String(page),
+        page_size: String(pageSize),
+        ...(search ? { search } : {}),
+        ...(status ? { status } : {})
+      });
+      return request<any>(`/history?${params.toString()}`, token);
+    },
+    async delete(token: string, jobId: string) {
+      return request<any>(`/history/${encodeURIComponent(jobId)}`, token, {
+        method: "DELETE"
+      });
+    },
+    async retry(token: string, jobId: string) {
+      return request<any>(`/history/${encodeURIComponent(jobId)}/retry`, token, {
+        method: "POST"
+      });
+    }
   }
 };

@@ -30,12 +30,15 @@ export function drawWave(
   ctx.clearRect(0, 0, cssWidth, cssHeight);
 
   if (!data.length) {
-    ctx.strokeStyle = "rgba(255,255,255,.12)";
+    ctx.strokeStyle = "#00FFA3";
     ctx.lineWidth = 2;
+    ctx.shadowColor = "#00FFA3";
+    ctx.shadowBlur = 8;
     ctx.beginPath();
     ctx.moveTo(0, cssHeight / 2);
     ctx.lineTo(cssWidth, cssHeight / 2);
     ctx.stroke();
+    ctx.shadowBlur = 0;
     return;
   }
 
@@ -49,7 +52,7 @@ export function drawWave(
     ctx.fillStyle = !showProgress || index / data.length <= position ? color : "rgba(74,74,74,.45)";
     const x = index * (barWidth + gap);
     const y = mode === "bottom" ? cssHeight - barHeight : center - barHeight / 2;
-    ctx.globalAlpha = mode === "bottom" ? 0.55 + amp * 0.45 : 1;
+    ctx.globalAlpha = mode === "bottom" ? 0.65 + amp * 0.35 : 1;
     ctx.fillRect(x, y, barWidth, barHeight);
   });
   ctx.globalAlpha = 1;

@@ -456,8 +456,8 @@ def train_model(args):
                 resume_state['ema'] = unwrapped_ema.state_dict()
             torch.save(resume_state, os.path.join(checkpoint_dir, 'resume.pt'))
 
-        # Run validation every valid_every epochs
-        if (epoch % args.valid_every) == 0 or epoch == config.training.num_epochs - 1:
+        # Run validation every valid_every completed epochs.
+        if ((epoch + 1) % args.valid_every) == 0 or epoch == config.training.num_epochs - 1:
             model_to_valid = ema_model if ema_model is not None else model
             sdr_list = valid(model_to_valid, valid_loader, args, config, device, verbose=accelerator.is_main_process)
             sdr_list = accelerator.gather(sdr_list)
@@ -504,7 +504,7 @@ def train_model(args):
             accelerator.wait_for_everyone()
         else:
             if accelerator.is_main_process:
-                print('(validation skipped, will run at epoch {})'.format(((epoch // args.valid_every) + 1) * args.valid_every))
+                print('(validation skipped, will run after epoch {})'.format(((epoch // args.valid_every) + 1) * args.valid_every))
 
 
 if __name__ == "__main__":
