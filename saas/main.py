@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from saas.core.config import get_settings
 from saas.db.postgres import SessionLocal
-from saas.routers import auth, jobs, legacy, storage, system, users
+from saas.routers import auth, dashboard, history, jobs, legacy, mixer, settings as settings_router, storage, system, users
 from saas.services.plans import ensure_default_plans
 
 
@@ -46,6 +46,10 @@ def create_app() -> FastAPI:
 
     app.include_router(auth.router)
     app.include_router(users.router)
+    app.include_router(dashboard.router)
+    app.include_router(mixer.router)
+    app.include_router(settings_router.router)
+    app.include_router(history.router)
     app.include_router(jobs.router)
     app.include_router(system.router)
     app.include_router(storage.router)
@@ -55,7 +59,12 @@ def create_app() -> FastAPI:
         path = settings.static_dir / name
         if not path.is_file():
             raise HTTPException(status_code=404, detail=f"{name} not found")
-        return FileResponse(path, media_type=media_type)
+        headers = {
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        }
+        return FileResponse(path, media_type=media_type, headers=headers)
 
     @app.get("/")
     def index():
