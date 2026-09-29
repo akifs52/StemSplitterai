@@ -1,6 +1,7 @@
 import type { AuthProviders, AuthResponse, Job, Organization, SystemInfo, User } from "./types";
 
-const API_BASE = "/api/v1";
+const BACKEND_HOST = (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+const API_BASE = `${BACKEND_HOST}/api/v1`;
 const TOKEN_KEY = "stemsplit.accessToken";
 
 export class ApiError extends Error {
