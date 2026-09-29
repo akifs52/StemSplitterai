@@ -1,72 +1,21 @@
-import {
-  CheckCircle2,
-  ChevronDown,
-  ChevronRight,
-  CircleAlert,
-  Cpu,
-  Download,
-  FileAudio,
-  Folder,
-  HardDriveDownload,
-  History,
-  Loader2,
-  LogOut,
-  Music2,
-  Pause,
-  Play,
-  RefreshCw,
-  Settings,
-  SlidersHorizontal,
-  UploadCloud,
-  UserRound,
-  Volume2,
-  WifiOff,
-  X
-} from "lucide-react";
 import { FormEvent, PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError, api, clearStoredToken, getStoredToken, storeToken } from "./api";
 import type { AuthProviders, InstallPromptEvent, Job, Organization, SystemInfo, User, ViewName } from "./types";
-import { drawWave } from "./waveform";
+import { getViewFromPath, syncRoute } from "./router";
+
+import { Header } from "./components/Header";
+import { Player } from "./components/Player";
+import { CornerWaveBg } from "./components/WaveformEffects";
+
+import { LoginPage } from "./pages/LoginPage";
+import { RegisterPage } from "./pages/RegisterPage";
+import { DashboardPage } from "./pages/DashboardPage";
+import { MixerPage } from "./pages/MixerPage";
+import { SettingsPage } from "./pages/SettingsPage";
 
 const palette = ["#ff4d6d", "#4fc3f7", "#ffd166", "#8be9c1", "#c77dff", "#ff9f1c", "#2ec4b6", "#e76f51"];
 const terminalStatuses = new Set(["done", "error", "cancelled"]);
-
-type AuthMode = "login" | "register";
-
-function GoogleIcon() {
-  return (
-    <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
-      <path
-        fill="#4285F4"
-        d="M23.49 12.27c0-.79-.07-1.54-.2-2.27H12v4.29h6.47c-.28 1.5-1.13 2.77-2.4 3.62v3.01h3.89c2.27-2.09 3.53-5.17 3.53-8.65z"
-      />
-      <path
-        fill="#34A853"
-        d="M12 24c3.24 0 5.96-1.07 7.95-2.91l-3.89-3.01c-1.08.72-2.45 1.15-4.06 1.15-3.12 0-5.77-2.11-6.72-4.95H1.26v3.1C3.24 21.3 7.3 24 12 24z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M5.28 14.28c-.24-.72-.38-1.48-.38-2.28s.14-1.56.38-2.28v-3.1H1.26C.45 8.24 0 10.06 0 12s.45 3.76 1.26 5.38l4.02-3.1z"
-      />
-      <path
-        fill="#EA4335"
-        d="M12 4.77c1.76 0 3.34.61 4.59 1.8l3.44-3.44C17.95 1.19 15.23 0 12 0 7.3 0 3.24 2.7 1.26 6.62l4.02 3.1C6.23 6.88 8.88 4.77 12 4.77z"
-      />
-    </svg>
-  );
-}
-
-function AppleIcon() {
-  return (
-    <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
-      <path
-        fill="currentColor"
-        d="M16.7 13.2c0-2.5 2.1-3.7 2.2-3.8-1.2-1.7-3-1.9-3.6-2-1.5-.2-3 .9-3.8.9-.8 0-2-.9-3.3-.9-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.7 1.3 10.2.9 1.2 1.9 2.6 3.2 2.5 1.3-.1 1.8-.8 3.4-.8 1.6 0 2 .8 3.4.8 1.4 0 2.3-1.2 3.2-2.5 1-1.4 1.4-2.8 1.4-2.9-.1 0-2.7-1-2.7-4.1zM14.3 5.8c.7-.9 1.2-2.1 1.1-3.3-1.1 0-2.4.7-3.1 1.6-.7.8-1.3 2-1.1 3.2 1.2.1 2.4-.6 3.1-1.5z"
-      />
-    </svg>
-  );
-}
 
 function consumeOAuthHash(): { token: string; error: string } {
   if (!window.location.hash) {
@@ -79,7 +28,7 @@ function consumeOAuthHash(): { token: string; error: string } {
     storeToken(token);
   }
   if (token || error) {
-    window.history.replaceState(null, "", "/");
+    window.history.replaceState(null, "", window.location.pathname || "/");
   }
   return { token, error };
 }
@@ -123,479 +72,14 @@ function statusLabel(job?: Job | null): string {
   return popupText(job.stage);
 }
 
-function WaveformIcon({ className = "" }: { className?: string }) {
-  return (
-    <svg className={`wave-badge-icon ${className}`} width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <rect x="2" y="8" width="3.5" height="8" rx="1.75" fill="#00FFA3" />
-      <rect x="8.5" y="3" width="3.5" height="18" rx="1.75" fill="#00FFA3" />
-      <rect x="15" y="6" width="3.5" height="12" rx="1.75" fill="#00FFA3" />
-      <rect x="21.5" y="9.5" width="2.5" height="5" rx="1.25" fill="#00FFA3" />
-    </svg>
-  );
-}
-
-function PanelWavesBg() {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    let animId: number;
-    let isVisible = true;
-    const handleVis = () => {
-      isVisible = !document.hidden;
-    };
-    document.addEventListener("visibilitychange", handleVis);
-
-    let width = 0;
-    let height = 0;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-
-    const resize = () => {
-      const rect = canvas.getBoundingClientRect();
-      width = rect.width;
-      height = rect.height;
-      canvas.width = Math.floor(width * dpr);
-      canvas.height = Math.floor(height * dpr);
-    };
-    resize();
-
-    const observer = new ResizeObserver(resize);
-    observer.observe(canvas);
-
-    const render = (time: number) => {
-      if (isVisible && width > 0 && height > 0) {
-        ctx.save();
-        ctx.scale(dpr, dpr);
-        ctx.clearRect(0, 0, width, height);
-
-        const baseline = height * 0.68;
-        const t = time * 0.001;
-
-        // Wave 1: Back wave with glowing gradient fill
-        ctx.beginPath();
-        ctx.moveTo(0, height);
-        for (let x = 0; x <= width; x += 4) {
-          const y =
-            baseline +
-            8 +
-            Math.sin(x * 0.0035 + t * 1.3) * 16 +
-            Math.sin(x * 0.0075 - t * 1.8) * 10 +
-            Math.cos(x * 0.014 + t * 2.4) * 6;
-          ctx.lineTo(x, y);
-        }
-        ctx.lineTo(width, height);
-        ctx.closePath();
-
-        const grad = ctx.createLinearGradient(0, baseline - 25, 0, height);
-        grad.addColorStop(0, "rgba(0, 255, 163, 0.28)");
-        grad.addColorStop(0.5, "rgba(0, 227, 136, 0.09)");
-        grad.addColorStop(1, "rgba(0, 255, 163, 0.0)");
-        ctx.fillStyle = grad;
-        ctx.fill();
-
-        ctx.strokeStyle = "rgba(0, 255, 163, 0.35)";
-        ctx.lineWidth = 1.2;
-        ctx.stroke();
-
-        // Wave 2: Middle echo wave
-        ctx.beginPath();
-        for (let x = 0; x <= width; x += 4) {
-          const y =
-            baseline +
-            Math.sin(x * 0.0042 + t * 1.6 + 1.5) * 20 +
-            Math.cos(x * 0.0091 - t * 2.1 + 0.8) * 13 +
-            Math.sin(x * 0.017 + t * 3.0) * 7;
-          if (x === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        }
-        ctx.strokeStyle = "rgba(0, 255, 163, 0.55)";
-        ctx.lineWidth = 1.4;
-        ctx.shadowColor = "#00FFA3";
-        ctx.shadowBlur = 6;
-        ctx.stroke();
-
-        // Wave 3: Front primary neon ribbon with strong glow
-        ctx.beginPath();
-        for (let x = 0; x <= width; x += 4) {
-          const y =
-            baseline -
-            8 +
-            Math.sin(x * 0.0049 - t * 1.7) * 24 +
-            Math.sin(x * 0.0105 + t * 2.3 + 2.3) * 14 +
-            Math.cos(x * 0.019 - t * 3.3) * 8;
-          if (x === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        }
-        ctx.strokeStyle = "#00FFA3";
-        ctx.lineWidth = 2.2;
-        ctx.shadowColor = "#00FFA3";
-        ctx.shadowBlur = 14;
-        ctx.stroke();
-
-        // Wave 4: Delicate ethereal ripple
-        ctx.beginPath();
-        for (let x = 0; x <= width; x += 6) {
-          const y =
-            baseline -
-            16 +
-            Math.sin(x * 0.0031 + t * 0.9) * 18 +
-            Math.cos(x * 0.0083 + t * 2.0 + 1.1) * 10;
-          if (x === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        }
-        ctx.strokeStyle = "rgba(0, 255, 163, 0.25)";
-        ctx.lineWidth = 1.0;
-        ctx.shadowBlur = 0;
-        ctx.stroke();
-
-        ctx.restore();
-      }
-      animId = requestAnimationFrame(render);
-    };
-
-    animId = requestAnimationFrame(render);
-
-    return () => {
-      cancelAnimationFrame(animId);
-      observer.disconnect();
-      document.removeEventListener("visibilitychange", handleVis);
-    };
-  }, []);
-
-  return <canvas ref={canvasRef} className="panel-waves-bg" />;
-}
-
-function CornerWaveBg() {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const seed = useRef(Math.random() * 500 + 100);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    let animId: number;
-    let isVisible = true;
-    const handleVis = () => {
-      isVisible = !document.hidden;
-    };
-    document.addEventListener("visibilitychange", handleVis);
-
-    let width = 0;
-    let height = 0;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-
-    const resize = () => {
-      const rect = canvas.getBoundingClientRect();
-      width = rect.width;
-      height = rect.height;
-      canvas.width = Math.floor(width * dpr);
-      canvas.height = Math.floor(height * dpr);
-    };
-    resize();
-
-    const observer = new ResizeObserver(resize);
-    observer.observe(canvas);
-
-    const s = seed.current;
-
-    const render = (time: number) => {
-      if (isVisible && width > 0 && height > 0) {
-        ctx.save();
-        ctx.scale(dpr, dpr);
-        ctx.clearRect(0, 0, width, height);
-
-        const t = (time + s * 100) * 0.001;
-
-        // Primary curve points with organic drift
-        const startX = width * 0.15 + Math.sin(t * 1.3) * 12;
-        const startY = height;
-        const cp1X = width * 0.35 + Math.cos(t * 1.7) * 16;
-        const cp1Y = height * 0.42 + Math.sin(t * 2.1) * 14;
-        const cp2X = width * 0.65 + Math.sin(t * 1.5 + 1.2) * 18;
-        const cp2Y = height * 0.85 + Math.cos(t * 2.3 + 0.8) * 12;
-        const endX = width;
-        const endY = height * 0.36 + Math.sin(t * 1.6 + 2.0) * 14;
-
-        // Gradient fill under primary ribbon
-        ctx.beginPath();
-        ctx.moveTo(startX, startY);
-        ctx.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, endX, endY);
-        ctx.lineTo(width, height);
-        ctx.closePath();
-
-        const grad = ctx.createLinearGradient(0, height, width, 0);
-        grad.addColorStop(0, "rgba(0, 255, 163, 0.4)");
-        grad.addColorStop(0.6, "rgba(0, 227, 136, 0.12)");
-        grad.addColorStop(1, "rgba(0, 255, 163, 0.0)");
-        ctx.fillStyle = grad;
-        ctx.fill();
-
-        // Primary ribbon stroke with neon glow
-        ctx.beginPath();
-        ctx.moveTo(startX, startY);
-        ctx.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, endX, endY);
-        ctx.strokeStyle = "#00FFA3";
-        ctx.lineWidth = 2.0;
-        ctx.shadowColor = "#00FFA3";
-        ctx.shadowBlur = 10;
-        ctx.stroke();
-
-        // Secondary echo ribbon
-        const eStartX = width * 0.3 + Math.sin(t * 1.1 + 0.5) * 10;
-        const eCp1X = width * 0.48 + Math.cos(t * 1.4 + 1.0) * 14;
-        const eCp1Y = height * 0.6 + Math.sin(t * 1.8 + 0.4) * 12;
-        const eCp2X = width * 0.72 + Math.sin(t * 1.6 + 2.0) * 14;
-        const eCp2Y = height * 0.88 + Math.cos(t * 1.9 + 1.2) * 10;
-        const eEndY = height * 0.55 + Math.sin(t * 1.4 + 1.5) * 12;
-
-        ctx.beginPath();
-        ctx.moveTo(eStartX, height);
-        ctx.bezierCurveTo(eCp1X, eCp1Y, eCp2X, eCp2Y, width, eEndY);
-        ctx.strokeStyle = "rgba(0, 255, 163, 0.45)";
-        ctx.lineWidth = 1.2;
-        ctx.shadowBlur = 4;
-        ctx.stroke();
-
-        // Tertiary faint ripple
-        const tStartX = width * 0.45 + Math.sin(t * 0.9 + 1.2) * 8;
-        const tCp1X = width * 0.6 + Math.cos(t * 1.2) * 10;
-        const tCp1Y = height * 0.75 + Math.sin(t * 1.5) * 8;
-        const tEndY = height * 0.72 + Math.sin(t * 1.2 + 0.8) * 8;
-
-        ctx.beginPath();
-        ctx.moveTo(tStartX, height);
-        ctx.bezierCurveTo(tCp1X, tCp1Y, width * 0.85, height * 0.92, width, tEndY);
-        ctx.strokeStyle = "rgba(0, 255, 163, 0.25)";
-        ctx.lineWidth = 0.8;
-        ctx.shadowBlur = 0;
-        ctx.stroke();
-
-        ctx.restore();
-      }
-      animId = requestAnimationFrame(render);
-    };
-
-    animId = requestAnimationFrame(render);
-
-    return () => {
-      cancelAnimationFrame(animId);
-      observer.disconnect();
-      document.removeEventListener("visibilitychange", handleVis);
-    };
-  }, []);
-
-  return <canvas ref={canvasRef} className="panel-corner-waves" />;
-}
-
-function PlayerCenterWaves({ playing = false }: { playing?: boolean }) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    let animId: number;
-    let isVisible = true;
-    const handleVis = () => {
-      isVisible = !document.hidden;
-    };
-    document.addEventListener("visibilitychange", handleVis);
-
-    let width = 0;
-    let height = 0;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-
-    const resize = () => {
-      const rect = canvas.getBoundingClientRect();
-      width = rect.width;
-      height = rect.height;
-      canvas.width = Math.floor(width * dpr);
-      canvas.height = Math.floor(height * dpr);
-    };
-    resize();
-
-    const observer = new ResizeObserver(resize);
-    observer.observe(canvas);
-
-    const render = (time: number) => {
-      if (isVisible && width > 0 && height > 0) {
-        ctx.save();
-        ctx.scale(dpr, dpr);
-        ctx.clearRect(0, 0, width, height);
-
-        const speedMul = playing ? 2.1 : 1.15;
-        const ampMul = playing ? 1.4 : 0.95;
-        const t = time * 0.001 * speedMul;
-        const centerX = width / 2;
-        const baseline = height * 0.58;
-
-        const points: { x: number; y1: number; y2: number; y3: number; fade: number }[] = [];
-        const step = 3;
-
-        for (let x = 0; x <= width; x += step) {
-          const distFromCenter = Math.abs(x - centerX);
-          // Directly behind the play button (~40px radius), dim smoothly
-          let centerFade = 1.0;
-          if (distFromCenter < 46) {
-            centerFade = 0.22 + 0.78 * Math.pow(distFromCenter / 46, 1.4);
-          }
-
-          // Edge taper (soft fade at ends)
-          const edgeDist = Math.min(x, width - x);
-          const edgeFade = edgeDist < 32 ? edgeDist / 32 : 1.0;
-          const totalFade = centerFade * edgeFade;
-
-          // Wave harmonics continuously running left-to-right
-          const phase = x * 0.032 - t * 2.6;
-          const y1 =
-            baseline +
-            Math.sin(phase) * (7.5 * ampMul) +
-            Math.cos(phase * 1.6 + t * 1.2) * (4 * ampMul);
-
-          const y2 =
-            baseline +
-            5 +
-            Math.sin(phase * 0.85 - t * 1.5 + 1.2) * (5.5 * ampMul) +
-            Math.cos(phase * 1.8 + t * 0.9) * (2.8 * ampMul);
-
-          const y3 =
-            baseline +
-            10 +
-            Math.sin(phase * 0.7 + t * 1.1 + 2.4) * (4 * ampMul);
-
-          points.push({ x, y1, y2, y3, fade: totalFade });
-        }
-
-        // Translucent gradient fill beneath Wave 1
-        ctx.beginPath();
-        ctx.moveTo(0, height);
-        points.forEach((p) => ctx.lineTo(p.x, p.y1));
-        ctx.lineTo(width, height);
-        ctx.closePath();
-
-        const fillGrad = ctx.createLinearGradient(0, baseline - 15, 0, height);
-        fillGrad.addColorStop(0, "rgba(0, 255, 163, 0.16)");
-        fillGrad.addColorStop(1, "rgba(0, 255, 163, 0.0)");
-        ctx.fillStyle = fillGrad;
-        ctx.fill();
-
-        // Continuous Wave 1 stroke with dimmed center behind play button
-        for (let i = 0; i < points.length - 1; i++) {
-          const p1 = points[i];
-          const p2 = points[i + 1];
-          const avgFade = (p1.fade + p2.fade) / 2;
-
-          ctx.beginPath();
-          ctx.moveTo(p1.x, p1.y1);
-          ctx.lineTo(p2.x, p2.y1);
-
-          ctx.strokeStyle = `rgba(0, 255, 163, ${0.9 * avgFade})`;
-          ctx.lineWidth = 2.2;
-          ctx.shadowColor = "#00FFA3";
-          ctx.shadowBlur = 10 * avgFade;
-          ctx.stroke();
-        }
-
-        // Continuous Wave 2 stroke (Echo)
-        for (let i = 0; i < points.length - 1; i++) {
-          const p1 = points[i];
-          const p2 = points[i + 1];
-          const avgFade = (p1.fade + p2.fade) / 2;
-
-          ctx.beginPath();
-          ctx.moveTo(p1.x, p1.y2);
-          ctx.lineTo(p2.x, p2.y2);
-
-          ctx.strokeStyle = `rgba(0, 255, 163, ${0.45 * avgFade})`;
-          ctx.lineWidth = 1.3;
-          ctx.shadowBlur = 4 * avgFade;
-          ctx.stroke();
-        }
-
-        // Continuous Wave 3 stroke (Tertiary faint)
-        for (let i = 0; i < points.length - 1; i += 2) {
-          const p1 = points[i];
-          const p2 = points[Math.min(i + 2, points.length - 1)];
-          const avgFade = (p1.fade + p2.fade) / 2;
-
-          ctx.beginPath();
-          ctx.moveTo(p1.x, p1.y3);
-          ctx.lineTo(p2.x, p2.y3);
-
-          ctx.strokeStyle = `rgba(0, 255, 163, ${0.25 * avgFade})`;
-          ctx.lineWidth = 0.9;
-          ctx.shadowBlur = 0;
-          ctx.stroke();
-        }
-
-        ctx.restore();
-      }
-      animId = requestAnimationFrame(render);
-    };
-
-    animId = requestAnimationFrame(render);
-
-    return () => {
-      cancelAnimationFrame(animId);
-      observer.disconnect();
-      document.removeEventListener("visibilitychange", handleVis);
-    };
-  }, [playing]);
-
-  return <canvas ref={canvasRef} className="player-continuous-wave" />;
-}
-
-function WaveCanvas({
-  data,
-  color,
-  position = 0,
-  mode = "center",
-  showProgress = true,
-  className = "",
-  height = 150
-}: {
-  data: number[];
-  color: string;
-  position?: number;
-  mode?: "center" | "bottom";
-  showProgress?: boolean;
-  className?: string;
-  height?: number;
-}) {
-  const ref = useRef<HTMLCanvasElement | null>(null);
-
-  useEffect(() => {
-    const canvas = ref.current;
-    if (!canvas) {
-      return;
-    }
-    const render = () => drawWave(canvas, data, color, position, mode, showProgress);
-    render();
-    const observer = new ResizeObserver(render);
-    observer.observe(canvas);
-    return () => observer.disconnect();
-  }, [color, data, height, mode, position, showProgress]);
-
-  return <canvas ref={ref} className={className} height={height} />;
-}
-
 export function App() {
-  const [token, setToken] = useState(initialOAuth.token || getStoredToken());
+  const [token, setToken] = useState<string>(() => initialOAuth.token || getStoredToken());
   const [user, setUser] = useState<User | null>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [system, setSystem] = useState<SystemInfo | null>(null);
   const [authProviders, setAuthProviders] = useState<AuthProviders>({ google: false, apple: false });
-  const [bootstrapping, setBootstrapping] = useState(Boolean(initialOAuth.token || getStoredToken()));
+  const [bootstrapping, setBootstrapping] = useState(true);
 
-  const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -603,7 +87,7 @@ export function App() {
   const [authError, setAuthError] = useState(initialOAuth.error);
   const [authBusy, setAuthBusy] = useState(false);
 
-  const [view, setView] = useState<ViewName>("dashboard");
+  const [view, setView] = useState<ViewName>(() => getViewFromPath(window.location.pathname));
   const [jobs, setJobs] = useState<Job[]>([]);
   const [currentJob, setCurrentJob] = useState<Job | null>(null);
   const [uploadError, setUploadError] = useState("");
@@ -629,9 +113,41 @@ export function App() {
 
   const audioRefs = useRef<Record<string, HTMLAudioElement | null>>({});
 
+  const isAuthenticated = Boolean(token && user && organization);
   const currentStems = currentJob?.stems || [];
   const playbackRatio = duration > 0 ? Math.max(0, Math.min(1, position / duration)) : 0;
   const activeJobRunning = Boolean(currentJob && !terminalStatuses.has(currentJob.status));
+
+  const navigate = useCallback((nextView: ViewName) => {
+    setView(nextView);
+    syncRoute(nextView, false);
+  }, []);
+
+  useEffect(() => {
+    syncRoute(view, true);
+    const handlePopState = () => {
+      const targetView = getViewFromPath(window.location.pathname);
+      setView(targetView);
+      syncRoute(targetView, true);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [view]);
+
+  // Route protection & auth redirect
+  useEffect(() => {
+    if (!bootstrapping) {
+      if (!isAuthenticated) {
+        if (view !== "login" && view !== "register") {
+          navigate("login");
+        }
+      } else {
+        if (view === "login" || view === "register") {
+          navigate("dashboard");
+        }
+      }
+    }
+  }, [bootstrapping, isAuthenticated, navigate, view]);
 
   const upsertJob = useCallback((job: Job) => {
     setJobs((items) =>
@@ -649,10 +165,11 @@ export function App() {
       setOrganization(null);
       setJobs([]);
       setCurrentJob(null);
+      navigate("login");
       return true;
     }
     return false;
-  }, []);
+  }, [navigate]);
 
   const loadJob = useCallback(
     async (jobId: string, switchToMixer = false, authToken = token) => {
@@ -664,13 +181,13 @@ export function App() {
         setCurrentJob(fresh);
         upsertJob(fresh);
         if (switchToMixer || fresh.status === "done") {
-          setView("mixer");
+          navigate("mixer");
         }
       } catch (error) {
         handleUnauthorized(error);
       }
     },
-    [handleUnauthorized, token, upsertJob]
+    [handleUnauthorized, navigate, token, upsertJob]
   );
 
   const refreshJobs = useCallback(
@@ -757,14 +274,14 @@ export function App() {
         setCurrentJob(fresh);
         upsertJob(fresh);
         if (fresh.status === "done") {
-          setView("mixer");
+          navigate("mixer");
         }
       } catch (error) {
         handleUnauthorized(error);
       }
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [currentJob, handleUnauthorized, token, upsertJob]);
+  }, [currentJob, handleUnauthorized, navigate, token, upsertJob]);
 
   useEffect(() => {
     setStemUrls({});
@@ -865,19 +382,17 @@ export function App() {
     return () => window.cancelAnimationFrame(frame);
   }, [playing, stemUrls]);
 
-  const submitAuth = async (event: FormEvent<HTMLFormElement>) => {
+  const submitLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setAuthBusy(true);
     setAuthError("");
     try {
-      const response =
-        authMode === "register"
-          ? await api.register(email, password, fullName, organizationName)
-          : await api.login(email, password);
+      const response = await api.login(email, password);
       storeToken(response.access_token);
       setToken(response.access_token);
       setUser(response.user);
       setOrganization(response.organization);
+      navigate("dashboard");
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "Authentication failed");
     } finally {
@@ -885,9 +400,27 @@ export function App() {
     }
   };
 
+  const submitRegister = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setAuthBusy(true);
+    setAuthError("");
+    try {
+      const response = await api.register(email, password, fullName, organizationName);
+      storeToken(response.access_token);
+      setToken(response.access_token);
+      setUser(response.user);
+      setOrganization(response.organization);
+      navigate("dashboard");
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Registration failed");
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
   const startOAuth = (provider: "google" | "apple") => {
     setAuthError("");
-    window.location.href = api.oauthStartUrl(provider, authMode);
+    window.location.href = api.oauthStartUrl(provider, view === "register" ? "register" : "login");
   };
 
   const logout = async () => {
@@ -904,7 +437,7 @@ export function App() {
     setOrganization(null);
     setJobs([]);
     setCurrentJob(null);
-    setView("dashboard");
+    navigate("login");
   };
 
   const uploadFile = async (file: File) => {
@@ -918,7 +451,7 @@ export function App() {
       const job = await api.getJob(token, created.job_id);
       setCurrentJob(job);
       upsertJob(job);
-      setView("dashboard");
+      navigate("dashboard");
     } catch (error) {
       if (!handleUnauthorized(error)) {
         setUploadError(error instanceof Error ? error.message : "Upload failed");
@@ -1029,505 +562,140 @@ export function App() {
     );
   }
 
-  if (!token || !user || !organization) {
+  if (!isAuthenticated) {
+    if (view === "register") {
+      return (
+        <RegisterPage
+          email={email}
+          onEmailChange={setEmail}
+          password={password}
+          onPasswordChange={setPassword}
+          fullName={fullName}
+          onFullNameChange={setFullName}
+          organizationName={organizationName}
+          onOrganizationNameChange={setOrganizationName}
+          authError={authError}
+          authBusy={authBusy}
+          authProviders={authProviders}
+          onSubmit={submitRegister}
+          onStartOAuth={startOAuth}
+          onNavigateToLogin={() => {
+            setAuthError("");
+            navigate("login");
+          }}
+          online={online}
+        />
+      );
+    }
     return (
-      <main className="auth-page">
-        <section className="auth-panel">
-          <CornerWaveBg />
-          <div>
-            <div className="brand-lockup">
-              <Music2 size={26} />
-              <span>StemSplit AI</span>
-            </div>
-            <h1>{authMode === "register" ? "Create your workspace" : "Sign in to your workspace"}</h1>
-          </div>
-          <form onSubmit={submitAuth} className="auth-form">
-            <label>
-              <span>Email</span>
-              <input autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} type="email" required />
-            </label>
-            <label>
-              <span>Password</span>
-              <input
-                autoComplete={authMode === "register" ? "new-password" : "current-password"}
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                type="password"
-                minLength={8}
-                required
-              />
-            </label>
-            {authMode === "register" && (
-              <>
-                <label>
-                  <span>Full name</span>
-                  <input value={fullName} onChange={(event) => setFullName(event.target.value)} />
-                </label>
-                <label>
-                  <span>Organization</span>
-                  <input value={organizationName} onChange={(event) => setOrganizationName(event.target.value)} />
-                </label>
-              </>
-            )}
-            {authError && <p className="error-line">{authError}</p>}
-            <button className="primary-btn" disabled={authBusy} type="submit">
-              {authBusy ? <Loader2 className="spin" size={17} /> : <UserRound size={17} />}
-              {authMode === "register" ? "Create account" : "Sign in"}
-            </button>
-          </form>
-          <div className="social-auth-block">
-            <div className="auth-divider"><span>or continue with</span></div>
-            <div className="provider-grid">
-              <button
-                className="provider-btn"
-                disabled={!authProviders.google || authBusy}
-                onClick={() => startOAuth("google")}
-                title={authProviders.google ? "Continue with Google" : "Google OAuth is not configured"}
-                type="button"
-              >
-                <span className="provider-mark google-mark">
-                  <GoogleIcon />
-                </span>
-                Continue with Google
-              </button>
-              <button
-                className="provider-btn"
-                disabled={!authProviders.apple || authBusy}
-                onClick={() => startOAuth("apple")}
-                title={authProviders.apple ? "Continue with Apple" : "Apple OAuth is not configured"}
-                type="button"
-              >
-                <span className="provider-mark apple-mark">
-                  <AppleIcon />
-                </span>
-                Continue with Apple
-              </button>
-            </div>
-          </div>
-          <button className="text-btn" onClick={() => setAuthMode(authMode === "register" ? "login" : "register")}>
-            {authMode === "register" ? "I already have an account" : "Create a new workspace"}
-          </button>
-          {!online && (
-            <div className="offline-note">
-              <WifiOff size={16} />
-              API access requires a network connection.
-            </div>
-          )}
-        </section>
-      </main>
+      <LoginPage
+        email={email}
+        onEmailChange={setEmail}
+        password={password}
+        onPasswordChange={setPassword}
+        authError={authError}
+        authBusy={authBusy}
+        authProviders={authProviders}
+        onSubmit={submitLogin}
+        onStartOAuth={startOAuth}
+        onNavigateToRegister={() => {
+          setAuthError("");
+          navigate("register");
+        }}
+        online={online}
+      />
     );
   }
 
   return (
     <main className="app-shell">
-      <header className="topbar">
-        <div className="brand-lockup">
-          <Music2 size={24} />
-          <span>StemSplit AI</span>
-        </div>
-        <nav className="tabs">
-          <button className={view === "dashboard" ? "active" : ""} onClick={() => setView("dashboard")}>
-            <UploadCloud size={16} />
-            Dashboard
-          </button>
-          <button className={view === "mixer" ? "active" : ""} onClick={() => setView("mixer")}>
-            <SlidersHorizontal size={16} />
-            Mixer
-          </button>
-          <button className={view === "settings" ? "active" : ""} onClick={() => setView("settings")}>
-            <Settings size={16} />
-            Settings
-          </button>
-        </nav>
-        <div className="top-actions">
-          {!online && <WifiOff className="offline-icon" size={18} />}
-          {installPrompt && (
-            <button className="icon-btn" onClick={installApp} title="Install app">
-              <HardDriveDownload size={18} />
-            </button>
-          )}
-          <div className="device-badge">{system?.device || "CPU"}</div>
-          <button className="icon-btn" onClick={logout} title="Log out">
-            <LogOut size={18} />
-          </button>
-        </div>
-      </header>
+      <Header
+        view={view}
+        onNavigate={navigate}
+        online={online}
+        installPrompt={installPrompt}
+        onInstallApp={installApp}
+        system={system}
+        onLogout={logout}
+      />
 
-      <section className={`view ${view === "dashboard" ? "active" : ""}`}>
-        <div className="section-title">
-          <h1>Source Separation</h1>
-          <p>{organization?.name || "Workspace"} workspace</p>
-        </div>
-        <div className="dashboard-grid">
-          <label
-            className="drop-zone"
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={(event) => {
-              event.preventDefault();
-              const file = event.dataTransfer.files[0];
-              if (file) {
-                uploadFile(file);
-              }
-            }}
-          >
-            <input type="file" accept="audio/*" onChange={(event) => event.target.files?.[0] && uploadFile(event.target.files[0])} />
-            <PanelWavesBg />
-            <div className="upload-circle">
-              {uploading ? <Loader2 className="spin upload-icon" size={34} /> : <UploadCloud className="upload-icon" size={34} />}
-            </div>
-            <strong className="drop-title">
-              Drop or <span className="highlight-green">choose audio</span>
-            </strong>
-            <small className="drop-sub">MP3, WAV, FLAC, M4A, OGG</small>
-            <div className="browse-files-pill">
-              <Folder size={15} />
-              <span>Browse Files</span>
-              <ChevronRight size={14} />
-            </div>
-          </label>
+      <DashboardPage
+        isActive={view === "dashboard"}
+        organizationName={organization?.name || "Workspace"}
+        uploading={uploading}
+        uploadError={uploadError}
+        onUploadFile={uploadFile}
+        currentJob={currentJob}
+        activeJobRunning={activeJobRunning}
+        onCancelJob={cancelCurrentJob}
+        playbackRatio={playbackRatio}
+        jobs={jobs}
+        onLoadJob={(id, switchToMixer) => loadJob(id, switchToMixer)}
+        onRefreshJobs={() => refreshJobs()}
+        formatBytes={formatBytes}
+        statusLabel={statusLabel}
+      />
 
-          <aside className="job-panel">
-            <CornerWaveBg />
-            <div className="panel-head">
-              <strong>
-                <WaveformIcon />
-                <span>Current Job</span>
-              </strong>
-              <span className={`status-pill ${currentJob?.status || "idle"}`}>
-                <span className="pulse-dot" />
-                {currentJob ? (currentJob.status === "running" ? `${currentJob.progress || 0}%` : currentJob.status) : "Idle"}
-              </span>
-            </div>
-            <div className="status-card">
-              <div className={`status-dot ${currentJob?.status || "idle"}`} />
-              <div>
-                <strong>{currentJob ? statusLabel(currentJob) : "No active job"}</strong>
-                <small>{currentJob?.source_filename || "Upload a file to start."}</small>
-              </div>
-            </div>
-            <div className="progress-bar">
-              <span style={{ width: `${currentJob?.progress || 0}%` }} />
-            </div>
-            {activeJobRunning && (
-              <button className="danger-btn" onClick={cancelCurrentJob}>
-                <X size={16} />
-                Cancel job
-              </button>
-            )}
-            {uploadError && <p className="error-line">{uploadError}</p>}
-          </aside>
-        </div>
+      <MixerPage
+        isActive={view === "mixer"}
+        currentJob={currentJob}
+        currentStems={currentStems}
+        colors={colors}
+        palette={palette}
+        stemUrls={stemUrls}
+        stemVolumes={stemVolumes}
+        onVolumeChange={(stemName, vol) =>
+          setStemVolumes((prev) => ({ ...prev, [stemName]: vol }))
+        }
+        muted={muted}
+        onToggleMute={(stemName) =>
+          setMuted((prev) => ({ ...prev, [stemName]: !prev[stemName] }))
+        }
+        solo={solo}
+        onToggleSolo={(stemName) =>
+          setSolo((prev) => (prev === stemName ? "" : stemName))
+        }
+        onDownloadStem={downloadStem}
+        stemUrlError={stemUrlError}
+        audioRefs={audioRefs}
+        onDurationUpdate={(dur) => setDuration((prev) => Math.max(prev, dur))}
+        onPlaybackEnded={() => {
+          const players = Object.values(audioRefs.current).filter(
+            (p): p is HTMLAudioElement => Boolean(p)
+          );
+          if (players.length > 0 && players.every((p) => Boolean(p.paused || p.ended))) {
+            setPlaying(false);
+          }
+        }}
+      />
 
-        <div className="wave-panel">
-          <div className="panel-head">
-            <strong>
-              <WaveformIcon />
-              <span>Original Waveform</span>
-            </strong>
-            <div className="source-pill">
-              <FileAudio size={14} />
-              <span>{currentJob?.source_filename || "No source loaded"}</span>
-              <ChevronDown size={14} />
-            </div>
-          </div>
-          <div className="wave-wrapper">
-            <WaveCanvas data={currentJob?.waveform || []} color="#00FFA3" position={playbackRatio} className="original-wave" />
-            {(!currentJob || !currentJob.waveform || currentJob.waveform.length === 0) && (
-              <div className="wave-empty-overlay">
-                <div className="wave-center-line" />
-                <span className="wave-empty-text">No file loaded</span>
-              </div>
-            )}
-          </div>
-        </div>
+      <SettingsPage
+        isActive={view === "settings"}
+        organization={organization}
+        user={user}
+        system={system}
+        model={model}
+        onModelChange={setModel}
+        segment={segment}
+        onSegmentChange={setSegment}
+        overlap={overlap}
+        onOverlapChange={setOverlap}
+        shifts={shifts}
+        onShiftsChange={setShifts}
+      />
 
-        <div className="history-panel">
-          <div className="panel-head">
-            <strong>
-              <History size={17} className="emerald-icon" />
-              <span>Job History</span>
-            </strong>
-            <button className="refresh-pill-btn" onClick={() => refreshJobs()} type="button">
-              <RefreshCw size={13} />
-              <span>Refresh</span>
-            </button>
-          </div>
-          {jobs.length === 0 ? (
-            <div className="history-empty">No jobs yet.</div>
-          ) : (
-            <div className="job-list">
-              {jobs.map((job) => (
-                <button
-                  key={job.id}
-                  className={`job-row ${currentJob?.id === job.id ? "selected" : ""}`}
-                  onClick={() => loadJob(job.id, job.status === "done")}
-                >
-                  <span>
-                    <strong>{job.source_filename}</strong>
-                    <small>{formatBytes(job.source_size_bytes)} · {job.model}</small>
-                  </span>
-                  <span className={`job-status ${job.status}`}>{job.status}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-
-      <section className={`view mixer-view ${view === "mixer" ? "active" : ""}`}>
-        <div className="section-title">
-          <h1>Stem Mixer</h1>
-          <p>{currentJob?.status === "done" ? "Fine-tune individual components of your track." : "A completed job is required for mixing."}</p>
-        </div>
-        {stemUrlError && <p className="error-line">{stemUrlError}</p>}
-        <div className="stem-list">
-          {currentJob?.status === "done" && currentStems.length ? (
-            currentStems.map((stem, index) => {
-              const color = colors[stem.name] || palette[index % palette.length];
-              const src = stemUrls[stem.name] || "";
-              return (
-                <article className="stem" style={{ color }} key={stem.name}>
-                  <div className="stem-info">
-                    <div className="stem-label">STEM {String(index + 1).padStart(2, "0")}</div>
-                    <div className="stem-name">{stem.name}</div>
-                  </div>
-                  <div className="stem-wave-wrap">
-                    <WaveCanvas
-                      data={currentJob.stem_waveforms?.[stem.name] || []}
-                      color={color}
-                      position={1}
-                      mode="bottom"
-                      showProgress={false}
-                      height={64}
-                      className="stem-wave"
-                    />
-                  </div>
-                  <div className="stem-actions">
-                    <label className="gain-control">
-                      <span>GAIN</span>
-                      <input
-                        type="range"
-                        className="neon-slider"
-                        min="0"
-                        max="100"
-                        value={Math.round((stemVolumes[stem.name] ?? 1) * 100)}
-                        style={{
-                          background: `linear-gradient(to right, ${color} 0%, ${color} ${Math.round((stemVolumes[stem.name] ?? 1) * 100)}%, rgba(255, 255, 255, 0.12) ${Math.round((stemVolumes[stem.name] ?? 1) * 100)}%, rgba(255, 255, 255, 0.12) 100%)`
-                        }}
-                        onChange={(event) =>
-                          setStemVolumes((previous) => ({
-                            ...previous,
-                            [stem.name]: Number(event.target.value) / 100
-                          }))
-                        }
-                      />
-                    </label>
-                    <div className="stem-buttons">
-                      <button
-                        className={`mini-btn ${muted[stem.name] ? "active-mute" : ""}`}
-                        onClick={() => setMuted((previous) => ({ ...previous, [stem.name]: !previous[stem.name] }))}
-                        title="Mute"
-                      >
-                        M
-                      </button>
-                      <button className={`mini-btn ${solo === stem.name ? "active-solo" : ""}`} onClick={() => setSolo(solo === stem.name ? "" : stem.name)} title="Solo">
-                        S
-                      </button>
-                      <button className="mini-btn" disabled={!src} onClick={() => downloadStem(stem.name)} title="Download">
-                        <Download size={17} />
-                      </button>
-                    </div>
-                  </div>
-                  <audio
-                    ref={(node) => {
-                      audioRefs.current[stem.name] = node;
-                    }}
-                    src={src}
-                    preload="auto"
-                    onLoadedMetadata={(event) => {
-                      const dur = event.currentTarget?.duration;
-                      if (typeof dur === "number" && Number.isFinite(dur) && dur > 0) {
-                        setDuration((prev) => Math.max(prev, dur));
-                      }
-                    }}
-                    onEnded={() => {
-                      const players = Object.values(audioRefs.current).filter(
-                        (p): p is HTMLAudioElement => Boolean(p)
-                      );
-                      if (players.length > 0 && players.every((player) => Boolean(player.paused || player.ended))) {
-                        setPlaying(false);
-                      }
-                    }}
-                  />
-                </article>
-              );
-            })
-          ) : (
-            <div className="empty-state">
-              <CornerWaveBg />
-              <div className="upload-circle" style={{ width: "56px", height: "56px", marginBottom: "0" }}>
-                <SlidersHorizontal size={24} className="emerald-icon" />
-              </div>
-              <strong style={{ fontSize: "16px", color: "#f1f7f3" }}>No Stem Track Selected</strong>
-              <span>Select a completed job from the dashboard to launch the multi-track stem mixer.</span>
-            </div>
-          )}
-        </div>
-      </section>
-
-      <section className={`view ${view === "settings" ? "active" : ""}`}>
-        <div className="section-title">
-          <h1>System Preferences</h1>
-          <p>Configure AI hardware acceleration and model parameters.</p>
-        </div>
-        <div className="settings-grid">
-          <div className="panel">
-            <CornerWaveBg />
-            <h2>
-              <WaveformIcon />
-              <span>Workspace</span>
-            </h2>
-            <div className="engine-card active-gpu">
-              <CheckCircle2 size={18} />
-              {organization?.name || "Workspace"}
-            </div>
-            <div className="engine-card">
-              <UserRound size={18} />
-              {user?.email || "User"}
-            </div>
-            <div className="engine-card">
-              <HardDriveDownload size={18} />
-              {organization?.plan?.name || "Free"} · {organization?.plan?.monthly_job_limit ?? 0} jobs/month
-            </div>
-          </div>
-          <div className="panel">
-            <CornerWaveBg />
-            <h2>
-              <Cpu size={18} className="emerald-icon" />
-              <span>Acceleration Engine</span>
-            </h2>
-            <div className={`engine-card ${system?.gpu ? "active-gpu" : ""}`}>
-              <Cpu size={18} />
-              {system?.gpu ? "NVIDIA CUDA (GPU)" : "CPU Mode"}
-            </div>
-            <div className={`engine-card ${system?.queue_ready ? "active-gpu" : "active-cpu"}`}>
-              <CheckCircle2 size={18} />
-              Queue {system?.queue_ready ? "ready" : "offline"} · {system?.queue_backend || "unknown"}
-            </div>
-          </div>
-          <div className="panel">
-            <CornerWaveBg />
-            <h2>
-              <Settings size={18} className="emerald-icon" />
-              <span>Demucs Configuration</span>
-            </h2>
-            <label className="control-field">
-              <span>Model</span>
-              <select value={model} onChange={(event) => setModel(event.target.value)}>
-                <option value="htdemucs">htdemucs</option>
-                <option value="htdemucs_ft">htdemucs_ft</option>
-                <option value="htdemucs_6s">htdemucs_6s</option>
-                <option value="mdx_extra">mdx_extra</option>
-              </select>
-            </label>
-            <label className="control-field slider-field">
-              <span>
-                Segment <b>{segment}s</b>
-              </span>
-              <input
-                type="range"
-                className="neon-slider"
-                min="1"
-                max="30"
-                value={segment}
-                style={{
-                  background: `linear-gradient(to right, #00FFA3 0%, #00FFA3 ${Math.round(((segment - 1) / 29) * 100)}%, rgba(255, 255, 255, 0.12) ${Math.round(((segment - 1) / 29) * 100)}%, rgba(255, 255, 255, 0.12) 100%)`
-                }}
-                onChange={(event) => setSegment(Number(event.target.value))}
-              />
-            </label>
-            <label className="control-field slider-field">
-              <span>
-                Overlap <b>{overlap.toFixed(2)}</b>
-              </span>
-              <input
-                type="range"
-                className="neon-slider"
-                min="0.1"
-                max="0.9"
-                step="0.05"
-                value={overlap}
-                style={{
-                  background: `linear-gradient(to right, #00FFA3 0%, #00FFA3 ${Math.round(((overlap - 0.1) / 0.8) * 100)}%, rgba(255, 255, 255, 0.12) ${Math.round(((overlap - 0.1) / 0.8) * 100)}%, rgba(255, 255, 255, 0.12) 100%)`
-                }}
-                onChange={(event) => setOverlap(Number(event.target.value))}
-              />
-            </label>
-            <label className="control-field slider-field">
-              <span>
-                Shifts <b>{shifts}x</b>
-              </span>
-              <input
-                type="range"
-                className="neon-slider"
-                min="1"
-                max="4"
-                value={shifts}
-                style={{
-                  background: `linear-gradient(to right, #00FFA3 0%, #00FFA3 ${Math.round(((shifts - 1) / 3) * 100)}%, rgba(255, 255, 255, 0.12) ${Math.round(((shifts - 1) / 3) * 100)}%, rgba(255, 255, 255, 0.12) 100%)`
-                }}
-                onChange={(event) => setShifts(Number(event.target.value))}
-              />
-            </label>
-          </div>
-        </div>
-      </section>
-
-      <footer className="player">
-        <div className="progress-area" onPointerDown={seekAll}>
-          <div className="progress-track">
-            <div className="progress-fill" style={{ width: `${playbackRatio * 100}%` }} />
-            <div className="progress-thumb" style={{ left: `${playbackRatio * 100}%` }} />
-          </div>
-          <span className="time-label current">{formatTime(position)}</span>
-          <span className="time-label duration">{formatTime(duration)}</span>
-        </div>
-
-        <div className="player-left-side">
-          <span className="player-status-badge">
-            <span className="status-live-dot" />
-            <span className="status-live-text">{playing ? activeStemLabel : "Ready"}</span>
-          </span>
-        </div>
-
-        <div className="player-center-wrap">
-          <PlayerCenterWaves playing={playing} />
-          <button id="playBtn" className={playing ? "playing" : ""} onClick={togglePlayback} title={playing ? "Pause" : "Play"}>
-            {playing ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" style={{ marginLeft: "3px" }} />}
-          </button>
-        </div>
-
-        <div className="player-right-side">
-          <div className="master-volume-box">
-            <Volume2 size={18} className="vol-icon" />
-            <span className="vol-label">Master</span>
-            <div className="volume-slider-wrap">
-              <input
-                type="range"
-                className="neon-slider"
-                min="0"
-                max="100"
-                value={Math.round(masterVolume * 100)}
-                style={{
-                  background: `linear-gradient(to right, #00FFA3 0%, #00FFA3 ${Math.round(masterVolume * 100)}%, rgba(255, 255, 255, 0.12) ${Math.round(masterVolume * 100)}%, rgba(255, 255, 255, 0.12) 100%)`
-                }}
-                onChange={(event) => setMasterVolume(Number(event.target.value) / 100)}
-              />
-            </div>
-            <span className="vol-pct">{Math.round(masterVolume * 100)}%</span>
-          </div>
-        </div>
-      </footer>
+      <Player
+        playing={playing}
+        onTogglePlayback={togglePlayback}
+        position={position}
+        duration={duration}
+        playbackRatio={playbackRatio}
+        onSeek={seekAll}
+        activeStemLabel={activeStemLabel}
+        masterVolume={masterVolume}
+        onVolumeChange={setMasterVolume}
+        formatTime={formatTime}
+      />
     </main>
   );
 }

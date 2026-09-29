@@ -1,4 +1,4 @@
-export type ViewName = "dashboard" | "mixer" | "settings";
+export type ViewName = "dashboard" | "mixer" | "settings" | "login" | "register";
 
 export interface User {
   id: string;
