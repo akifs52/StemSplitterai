@@ -6,9 +6,6 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const isVercel = Boolean(process.env.VERCEL || process.env.NOW_BUILDER);
-const base = isVercel ? "/" : "/static/";
-const outDir = isVercel ? "dist" : "../web/static";
 
 function copyFolderRecursiveSync(source: string, target: string) {
   if (!fs.existsSync(source)) return;
@@ -27,12 +24,12 @@ function copyFolderRecursiveSync(source: string, target: string) {
   }
 }
 
-function vercelBuildEnhancer(): Plugin {
+function universalBuildDistSync(): Plugin {
   return {
-    name: "vercel-build-enhancer",
+    name: "universal-build-dist-sync",
     apply: "build",
     buildStart() {
-      // Ensure frontend/public/static exists with fonts & pwa icons for universal path resolution
+      // Ensure frontend/public/static exists with fonts & pwa icons for any legacy /static requests
       const publicDir = path.resolve(__dirname, "public");
       const staticDir = path.join(publicDir, "static");
       const fontsDir = path.join(publicDir, "fonts");
@@ -49,26 +46,28 @@ function vercelBuildEnhancer(): Plugin {
       }
     },
     closeBundle() {
-      // Sync build output so both dist and ../web/static are always present
-      if (isVercel) {
-        const distIndex = path.resolve(__dirname, "dist/index.html");
-        const dist200 = path.resolve(__dirname, "dist/200.html");
-        if (fs.existsSync(distIndex) && !fs.existsSync(dist200)) {
-          fs.copyFileSync(distIndex, dist200);
-        }
-      } else {
-        const webStatic = path.resolve(__dirname, "../web/static");
-        const distDir = path.resolve(__dirname, "dist");
-        if (fs.existsSync(webStatic)) {
-          copyFolderRecursiveSync(webStatic, distDir);
-        }
+      const distDir = path.resolve(__dirname, "dist");
+      const rootDistDir = path.resolve(__dirname, "../dist");
+      const webStaticDir = path.resolve(__dirname, "../web/static");
+
+      // 1. Generate 200.html SPA fallback inside dist
+      const distIndex = path.join(distDir, "index.html");
+      const dist200 = path.join(distDir, "200.html");
+      if (fs.existsSync(distIndex)) {
+        fs.copyFileSync(distIndex, dist200);
       }
+
+      // 2. Mirror dist to root ../dist (for root-level Vercel builds)
+      copyFolderRecursiveSync(distDir, rootDistDir);
+
+      // 3. Mirror dist to ../web/static (for Docker and local FastAPI server)
+      copyFolderRecursiveSync(distDir, webStaticDir);
     }
   };
 }
 
 export default defineConfig({
-  base,
+  base: "/",
   plugins: [
     react(),
     VitePWA({
@@ -81,7 +80,7 @@ export default defineConfig({
       injectManifest: {
         globPatterns: ["**/*.{js,css,html,png,svg,ico,webmanifest,ttf,woff2}"],
         modifyURLPrefix: {
-          "": base
+          "": "/"
         },
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024
       },
@@ -96,17 +95,17 @@ export default defineConfig({
         start_url: "/",
         icons: [
           {
-            src: `${base}pwa-192.png`.replace(/\/\//g, "/"),
+            src: "/pwa-192.png",
             sizes: "192x192",
             type: "image/png"
           },
           {
-            src: `${base}pwa-512.png`.replace(/\/\//g, "/"),
+            src: "/pwa-512.png",
             sizes: "512x512",
             type: "image/png"
           },
           {
-            src: `${base}pwa-maskable-512.png`.replace(/\/\//g, "/"),
+            src: "/pwa-maskable-512.png",
             sizes: "512x512",
             type: "image/png",
             purpose: "maskable"
@@ -114,10 +113,10 @@ export default defineConfig({
         ]
       }
     }),
-    vercelBuildEnhancer()
+    universalBuildDistSync()
   ],
   build: {
-    outDir,
+    outDir: "dist",
     emptyOutDir: true,
     assetsDir: "vite-assets",
     sourcemap: false

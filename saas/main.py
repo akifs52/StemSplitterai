@@ -41,6 +41,12 @@ def create_app() -> FastAPI:
 
     if settings.static_dir.is_dir():
         app.mount("/static", StaticFiles(directory=settings.static_dir), name="static")
+        vite_assets = settings.static_dir / "vite-assets"
+        if vite_assets.is_dir():
+            app.mount("/vite-assets", StaticFiles(directory=vite_assets), name="vite-assets")
+        fonts_path = settings.static_dir / "fonts"
+        if fonts_path.is_dir():
+            app.mount("/fonts", StaticFiles(directory=fonts_path), name="fonts")
     if settings.assets_dir.is_dir():
         app.mount("/assets", StaticFiles(directory=settings.assets_dir), name="assets")
 
@@ -86,9 +92,21 @@ def create_app() -> FastAPI:
     def favicon():
         return static_file("pwa-192.png", "image/png")
 
+    @app.get("/pwa-192.png", include_in_schema=False)
+    def pwa_192():
+        return static_file("pwa-192.png", "image/png")
+
+    @app.get("/pwa-512.png", include_in_schema=False)
+    def pwa_512():
+        return static_file("pwa-512.png", "image/png")
+
+    @app.get("/pwa-maskable-512.png", include_in_schema=False)
+    def pwa_maskable_512():
+        return static_file("pwa-maskable-512.png", "image/png")
+
     @app.get("/{full_path:path}", include_in_schema=False)
     def spa_fallback(full_path: str):
-        if full_path.startswith(("api/", "static/", "assets/")):
+        if full_path.startswith(("api/", "static/", "assets/", "vite-assets/", "fonts/")):
             raise HTTPException(status_code=404, detail="Not found")
         return static_file("index.html", "text/html")
 
