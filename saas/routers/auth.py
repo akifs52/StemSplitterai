@@ -52,12 +52,12 @@ def oauth_start(provider: str, mode: str = Query(default="login")):
 
 def _oauth_success_redirect(token: str) -> RedirectResponse:
     base = get_settings().frontend_url or ""
-    return RedirectResponse(f"{base}/auth/callback#access_token={quote(token)}")
+    return RedirectResponse(f"{base}/#access_token={quote(token)}")
 
 
 def _oauth_error_redirect(message: str) -> RedirectResponse:
     base = get_settings().frontend_url or ""
-    return RedirectResponse(f"{base}/auth/callback#oauth_error={quote(message)}")
+    return RedirectResponse(f"{base}/#oauth_error={quote(message)}")
 
 
 async def _handle_oauth_callback(
