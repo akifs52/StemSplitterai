@@ -1757,46 +1757,83 @@ input[type="range"] {
 
   /* BOTTOM PLAYER MOBILE */
   .player {
-    height: 70px;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 76px;
     padding: 0 16px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px;
+    justify-content: center;
+    z-index: 30;
+  }
+
+  .player-left-side {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    z-index: 5;
   }
 
   .player-status-badge {
-    font-size: 12px;
+    font-size: 11px;
     gap: 6px;
+    background: rgba(10, 18, 14, 0.65);
+    padding: 4px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(0, 255, 163, 0.15);
+  }
+
+  .status-live-dot {
+    width: 6px;
+    height: 6px;
   }
 
   .status-live-text {
-    font-size: 12px;
-    max-width: 140px;
+    font-size: 11px;
+    max-width: 70px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .player-center-wrap {
-    width: auto;
-    max-width: none;
-    height: 50px;
-    flex-shrink: 0;
+    position: relative;
+    width: 240px;
+    max-width: calc(100vw - 120px);
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    z-index: 2;
+  }
+
+  .player-continuous-wave {
+    position: absolute;
+    inset: 0;
+    width: 100% !important;
+    height: 100% !important;
+    pointer-events: none;
+    display: block !important;
+    z-index: 1;
   }
 
   #playBtn {
-    width: 48px;
-    height: 48px;
+    position: relative;
+    z-index: 3;
+    width: 50px;
+    height: 50px;
+    margin: 0 auto;
   }
 
   #playBtn svg {
     width: 22px;
     height: 22px;
-  }
-
-  .player-continuous-wave {
-    height: 50px;
   }
 
   .player-right-side,
@@ -1816,10 +1853,32 @@ input[type="range"] {
   }
 
   .player {
-    padding: 0 12px;
+    height: 72px;
+    padding: 0 10px;
+  }
+
+  .player-left-side {
+    left: 10px;
   }
 
   .status-live-text {
-    max-width: 90px;
+    max-width: 54px;
+    font-size: 10px;
+  }
+
+  .player-center-wrap {
+    width: 200px;
+    max-width: calc(100vw - 100px);
+    height: 56px;
+  }
+
+  #playBtn {
+    width: 46px;
+    height: 46px;
+  }
+
+  #playBtn svg {
+    width: 20px;
+    height: 20px;
   }
 }
