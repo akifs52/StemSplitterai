@@ -26,27 +26,33 @@ export function Header({
         <Music2 size={24} />
         <span>StemSplit AI</span>
       </div>
-      <nav className="tabs">
+      <nav className="tabs" aria-label="Main Navigation">
         <button
           className={view === "dashboard" ? "active" : ""}
           onClick={() => onNavigate("dashboard")}
+          title="Dashboard"
+          aria-label="Dashboard"
         >
           <UploadCloud size={16} />
-          Dashboard
+          <span className="tab-label">Dashboard</span>
         </button>
         <button
           className={view === "mixer" ? "active" : ""}
           onClick={() => onNavigate("mixer")}
+          title="Mixer"
+          aria-label="Mixer"
         >
           <SlidersHorizontal size={16} />
-          Mixer
+          <span className="tab-label">Mixer</span>
         </button>
         <button
           className={view === "settings" ? "active" : ""}
           onClick={() => onNavigate("settings")}
+          title="Settings"
+          aria-label="Settings"
         >
           <Settings size={16} />
-          Settings
+          <span className="tab-label">Settings</span>
         </button>
       </nav>
       <div className="top-actions">

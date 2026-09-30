@@ -1541,57 +1541,74 @@ input[type="range"] {
   }
 
   .topbar {
-    min-height: 58px;
-    height: 58px;
-    padding: 0 14px;
-    gap: 12px;
+    min-height: 56px;
+    height: 56px;
+    padding: 0 12px;
+    gap: 10px;
+    justify-content: space-between;
   }
 
   .brand-lockup {
-    font-size: 18px;
+    font-size: 16px;
+    gap: 8px;
+    flex-shrink: 0;
   }
 
   .brand-lockup svg {
-    width: 20px;
-    height: 20px;
+    width: 22px;
+    height: 22px;
   }
 
   .tabs {
-    gap: 4px;
-    overflow-x: auto;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
+    flex: 0 1 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 0;
+    overflow: visible;
   }
 
   .tabs::-webkit-scrollbar {
     display: none;
   }
 
+  .tabs .tab-label {
+    display: none !important;
+  }
+
   .tabs button {
-    min-height: 32px;
-    height: 32px;
-    padding: 0 10px;
-    font-size: 12px;
-    gap: 6px;
-    white-space: nowrap;
-    border-radius: 6px;
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    min-height: 36px;
+    padding: 0;
+    margin: 0;
+    gap: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
   }
 
   .tabs button svg {
-    width: 14px;
-    height: 14px;
+    width: 18px;
+    height: 18px;
   }
 
   .device-badge {
-    min-height: 26px;
-    height: 26px;
-    padding: 0 8px;
-    font-size: 10px;
+    display: none !important;
+  }
+
+  .top-actions {
+    gap: 6px;
+    flex-shrink: 0;
   }
 
   .icon-btn {
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
   }
 
   .view {
@@ -1740,70 +1757,51 @@ input[type="range"] {
 
   /* BOTTOM PLAYER MOBILE */
   .player {
-    height: 74px;
-    padding: 0 12px;
-    grid-template-columns: 75px 1fr 110px;
-    gap: 8px;
+    height: 70px;
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
   }
 
   .player-status-badge {
-    font-size: 11px;
-    gap: 5px;
+    font-size: 12px;
+    gap: 6px;
   }
 
   .status-live-text {
-    font-size: 11px;
-    max-width: 58px;
+    font-size: 12px;
+    max-width: 140px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .player-center-wrap {
-    width: 100%;
-    max-width: 180px;
+    width: auto;
+    max-width: none;
     height: 50px;
+    flex-shrink: 0;
   }
 
   #playBtn {
-    width: 46px;
-    height: 46px;
+    width: 48px;
+    height: 48px;
   }
 
   #playBtn svg {
-    width: 20px;
-    height: 20px;
+    width: 22px;
+    height: 22px;
   }
 
   .player-continuous-wave {
     height: 50px;
   }
 
-  .player-right-side {
-    justify-content: flex-end;
-  }
-
+  .player-right-side,
   .master-volume-box {
-    padding: 4px 8px;
-    gap: 6px;
-  }
-
-  .vol-icon {
-    width: 15px;
-    height: 15px;
-  }
-
-  .vol-label {
-    display: none;
-  }
-
-  .volume-slider-wrap {
-    width: 55px;
-  }
-
-  .vol-pct {
-    font-size: 11px;
-    width: 26px;
+    display: none !important;
   }
 }
 
@@ -1818,11 +1816,10 @@ input[type="range"] {
   }
 
   .player {
-    grid-template-columns: 60px 1fr 90px;
-    padding: 0 8px;
+    padding: 0 12px;
   }
 
-  .volume-slider-wrap {
-    width: 45px;
+  .status-live-text {
+    max-width: 90px;
   }
 }
