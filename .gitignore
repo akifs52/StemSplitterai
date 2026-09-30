@@ -45,3 +45,4 @@ dataset/
 Thumbs.db
 
 tmp/
+.vercel

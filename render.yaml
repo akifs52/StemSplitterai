@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: stemsplit-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: standard
+    region: oregon
+    healthCheckPath: /health
+    envVars:
+      - key: STEM_ENV
+        value: production
+      - key: STEM_APP_NAME
+        value: StemSplit AI SaaS
+      - key: DATABASE_URL
+        fromDatabase:
+          name: stemsplitter-db
+          property: connectionString
+      - key: STEM_AUTH_SECRET_KEY
+        generateValue: true
+
+databases:
+  - name: stemsplitter-db
+    databaseName: stemsplitter
+    user: stemsplitter_user
+    plan: free
+    region: oregon
