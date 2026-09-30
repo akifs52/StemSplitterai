@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Query
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
+from saas.core.config import get_settings
 from saas.core.security import decode_oauth_state, utcnow
 from saas.db.postgres import get_db
 from saas.dependencies import AuthContext, get_current_context
