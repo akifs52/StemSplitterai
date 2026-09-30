@@ -12,6 +12,9 @@ os.environ["STEM_STORAGE_LOCAL_DIR"] = STORAGE_DIR
 os.environ["STEM_QUEUE_BACKEND"] = "none"
 os.environ["STEM_AUTH_SECRET_KEY"] = "test-secret"
 os.environ["STEM_LEGACY_COMPAT_ENABLED"] = "false"
+os.environ["STEM_GOOGLE_CLIENT_ID"] = ""
+os.environ["STEM_GOOGLE_CLIENT_SECRET"] = ""
+os.environ["STEM_APPLE_CLIENT_ID"] = ""
 
 from fastapi.testclient import TestClient
 

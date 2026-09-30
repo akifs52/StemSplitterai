@@ -96,6 +96,7 @@ class Settings:
         self.auth_secret_key = os.getenv("STEM_AUTH_SECRET_KEY", "change-me-in-production")
         self.access_token_expire_minutes = int(os.getenv("STEM_ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
         self.public_base_url = os.getenv("STEM_PUBLIC_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+        self.frontend_url = os.getenv("STEM_FRONTEND_URL", "").rstrip("/")
         self.oauth_state_expire_minutes = int(os.getenv("STEM_OAUTH_STATE_EXPIRE_MINUTES", "10"))
         self.google_client_id = os.getenv("STEM_GOOGLE_CLIENT_ID", "")
         self.google_client_secret = os.getenv("STEM_GOOGLE_CLIENT_SECRET", "")
